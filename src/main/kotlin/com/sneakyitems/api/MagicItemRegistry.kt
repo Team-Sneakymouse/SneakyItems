@@ -8,8 +8,6 @@ import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.Plugin
 import java.io.File
-import java.util.Collections
-import java.util.IdentityHashMap
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -44,7 +42,7 @@ object MagicItemRegistry {
         val parsed = stampFromStackIfNeeded(internalName, item) ?: return false
         MagicItems.getMagicItems()[internalName] = parsed
         ownersByName[internalName] = owner
-        defsByOwner.computeIfAbsent(owner) { Collections.newSetFromMap(IdentityHashMap()) }.add(internalName)
+        defsByOwner.computeIfAbsent(owner) { ConcurrentHashMap.newKeySet() }.add(internalName)
         return true
     }
 

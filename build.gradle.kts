@@ -215,6 +215,7 @@ dependencies {
 
     testImplementation("io.papermc.paper:paper-api:$paperApi")
     testImplementation("io.github.team-sneakymouse:sneakyutils:$sneakyUtilsVersion")
+    testImplementation("io.github.team-sneakymouse:sneakycharactermanager-paper:$sneakyCharacterManagerVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v26.2:$mockBukkitVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

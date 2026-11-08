@@ -36,7 +36,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.configuration.file.YamlConfiguration;
 
-import net.sneakycharactermanager.paper.SneakyCharacterManager;
 import net.sneakycharactermanager.paper.handlers.character.LoadCharacterEvent;
 
 import org.jetbrains.annotations.Nullable;

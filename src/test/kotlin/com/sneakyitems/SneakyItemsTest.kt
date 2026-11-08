@@ -1,4 +1,4 @@
-package com.emptyplugin
+package com.sneakyitems
 
 import org.mockbukkit.mockbukkit.MockBukkit
 import org.junit.jupiter.api.AfterEach
@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 
-class EmptyPluginTest {
+class SneakyItemsTest {
 
     @BeforeEach
     fun setUp() {
@@ -21,9 +21,9 @@ class EmptyPluginTest {
 
     @Test
     fun loadsAndEnablesWithoutError() {
-        val plugin = MockBukkit.load(EmptyPlugin::class.java)
+        val plugin = MockBukkit.load(SneakyItems::class.java)
         assertNotNull(plugin)
         assertTrue(plugin.isEnabled)
-        assertNotNull(EmptyPlugin.instance)
+        assertNotNull(SneakyItems.instance)
     }
 }

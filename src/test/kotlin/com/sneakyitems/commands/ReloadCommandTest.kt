@@ -1,6 +1,6 @@
-package com.emptyplugin.commands
+package com.sneakyitems.commands
 
-import com.emptyplugin.EmptyPlugin
+import com.sneakyitems.SneakyItems
 import com.mojang.brigadier.exceptions.CommandSyntaxException
 import org.mockbukkit.mockbukkit.command.CommandSourceStackMock
 import org.mockbukkit.mockbukkit.command.brigadier.PaperCommandsMock
@@ -30,49 +30,49 @@ class ReloadCommandTest {
 
     @Test
     fun reloadLiteralHasNativeCompletion() {
-        MockBukkit.load(EmptyPlugin::class.java)
-        server.dispatchCommand(server.consoleSender, "emptyplugin")
+        MockBukkit.load(SneakyItems::class.java)
+        server.dispatchCommand(server.consoleSender, "sneakyitems")
 
         val dispatcher = PaperCommandsMock.INSTANCE.dispatcherInternal
-        val parsed = dispatcher.parse("emptyplugin r", CommandSourceStackMock.from(server.consoleSender))
+        val parsed = dispatcher.parse("sneakyitems r", CommandSourceStackMock.from(server.consoleSender))
         val suggestions = dispatcher.getCompletionSuggestions(parsed).join().list.map { it.text }
         assertEquals(listOf("reload"), suggestions)
     }
 
     @Test
     fun playerWithoutPermissionCannotReload() {
-        val plugin = MockBukkit.load(EmptyPlugin::class.java)
+        val plugin = MockBukkit.load(SneakyItems::class.java)
         plugin.config.set("test-value", "before")
         File(plugin.dataFolder, "config.yml").writeText("test-value: after\n")
         val player = server.addPlayer()
 
-        server.dispatchCommand(player, "emptyplugin reload")
+        server.dispatchCommand(player, "sneakyitems reload")
 
         assertEquals("before", plugin.config.getString("test-value"))
     }
 
     @Test
     fun playerWithPermissionCanReloadRepeatedly() {
-        val plugin = MockBukkit.load(EmptyPlugin::class.java)
+        val plugin = MockBukkit.load(SneakyItems::class.java)
         val player = server.addPlayer()
-        player.addAttachment(plugin, "emptyplugin.command.reload", true)
+        player.addAttachment(plugin, "sneakyitems.command.reload", true)
 
         for (value in listOf("first", "second")) {
             File(plugin.dataFolder, "config.yml").writeText("test-value: $value\n")
-            assertTrue(server.dispatchCommand(player, "emptyplugin reload"))
+            assertTrue(server.dispatchCommand(player, "sneakyitems reload"))
             assertEquals(value, plugin.config.getString("test-value"))
-            assertEquals("EmptyPlugin configuration reloaded.", player.nextMessage())
+            assertEquals("SneakyItems configuration reloaded.", player.nextMessage())
         }
     }
 
     @Test
     fun invalidArgumentsAreRejectedWithoutReloading() {
-        val plugin = MockBukkit.load(EmptyPlugin::class.java)
-        server.dispatchCommand(server.consoleSender, "emptyplugin")
+        val plugin = MockBukkit.load(SneakyItems::class.java)
+        server.dispatchCommand(server.consoleSender, "sneakyitems")
         plugin.config.set("test-value", "before")
         File(plugin.dataFolder, "config.yml").writeText("test-value: after\n")
 
-        for (command in listOf("emptyplugin", "emptyplugin unknown", "emptyplugin reload extra")) {
+        for (command in listOf("sneakyitems", "sneakyitems unknown", "sneakyitems reload extra")) {
             assertThrows(CommandSyntaxException::class.java) {
                 PaperCommandsMock.INSTANCE.dispatcherInternal.execute(
                     command,
@@ -85,14 +85,14 @@ class ReloadCommandTest {
 
     @Test
     fun consoleReloadReparsesConfigFromDisk() {
-        val plugin = MockBukkit.load(EmptyPlugin::class.java)
+        val plugin = MockBukkit.load(SneakyItems::class.java)
         plugin.config.set("test-value", "before")
         File(plugin.dataFolder, "config.yml").writeText("test-value: after\n")
 
-        assertTrue(server.dispatchCommand(server.consoleSender, "emptyplugin reload"))
+        assertTrue(server.dispatchCommand(server.consoleSender, "sneakyitems reload"))
 
         assertEquals("after", plugin.config.getString("test-value"))
-        assertEquals("EmptyPlugin configuration reloaded.", server.consoleSender.nextMessage())
+        assertEquals("SneakyItems configuration reloaded.", server.consoleSender.nextMessage())
         assertTrue(plugin.isEnabled)
     }
 }

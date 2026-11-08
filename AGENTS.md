@@ -1,6 +1,6 @@
 # Agent instructions (Team Sneakymouse / Lords of Minecraft)
 
-This repo is a **Paper plugin template** (Kotlin, Paper 26.2, Gradle). All coding agents (Cursor, Claude Code, Codex, Antigravity, Hermes, etc.) should follow this file.
+This repo is a **Paper plugin** (Kotlin, Paper 26.2, Gradle). All coding agents (Cursor, Claude Code, Codex, Antigravity, Hermes, etc.) should follow this file.
 
 <!-- BEGIN TEAM-POLICY MANAGED BOOTSTRAP -->
 This project is enrolled in Team-Sneakymouse development policy via a sibling checkout (see `.team-policy/pointer.json`).
@@ -16,19 +16,13 @@ Do not substitute remembered rules, a web mirror, or an unlisted path. Follow lo
 
 | | |
 |--|--|
-| Project | EmptyPlugin (Paper plugin template) |
+| Project | SneakyItems (Paper plugin) |
 | Runtime targets | Paper API 26.2, Java/Kotlin JVM 25 |
 | Shared Paper utils | SneakyUtils `compileOnly` + runtime `depend` (see team policy `sneakyutils.md`) |
 | Deployment | push to `main` triggers publish via `.github/workflows/publish.yml` |
-| Build output | `~/.cache/EmptyPlugin-gradle-build` (keeps Gradle off FUSE/NTFS checkouts; see README) |
+| Build output | `~/.cache/SneakyItems-gradle-build` (keeps Gradle off FUSE/NTFS checkouts; see README) |
 
 Custom item look, CraftEngine/pack model id, server resource pack, or ItemDisplay place/orient → read `<policy-root>/policy/paper-items.md`.
-
-<!-- EMPTYPLUGIN-ONLY LOCAL EXCEPTION: remove from repositories created from this template -->
-### Template-only local exception — EmptyPlugin only
-
-- **Stricter testing:** while working on this repository as the EmptyPlugin template, if you change behavior under `src/main/`, add or update tests under `src/test/` in the same change and run `./gradlew test` (or `check`). Rationale: the template should demonstrate its test harness. Approver: pilot enrollment 2026-10-18. This exception applies only to the EmptyPlugin repository. It does not transfer to a plugin created from this template; `scripts/rename-template.sh` removes every block between these markers, unless the new repository separately records an approved exception.
-<!-- END EMPTYPLUGIN-ONLY LOCAL EXCEPTION -->
 
 ## Commands
 
@@ -44,17 +38,13 @@ Custom item look, CraftEngine/pack model id, server resource pack, or ItemDispla
 
 Builds require a **git checkout** with at least one commit (version is derived from `HEAD`).
 
-<!-- EMPTYPLUGIN-ONLY LOCAL EXCEPTION: remove from repositories created from this template -->
-Template only: `bash scripts/rename-template.sh <PluginName>` turns this checkout into a new plugin, and `./gradlew templateRenameSmoke` (part of `check` here) tests that script on a scratch copy. Template-only Gradle logic lives in `gradle/template.gradle.kts`, which the script deletes.
-<!-- END EMPTYPLUGIN-ONLY LOCAL EXCEPTION -->
-
 ## Architecture (keep plugins testable)
 
 Put code where it can be tested without a live server when possible:
 
 ```text
 src/main/kotlin/<package>/
-  EmptyPlugin.kt       # Bootstrap only: config, register commands/listeners
+  SneakyItems.kt       # Bootstrap only: config, register commands/listeners
   service/             # Rules, calculations, domain logic — no org.bukkit imports
   command/             # Parse args, call services, send messages
   listener/            # Events → services
@@ -69,9 +59,9 @@ Guidelines:
 
 - **Business logic** belongs in `service/` or `util/`, not in listeners or command `execute` bodies.
 - **Commands and listeners** are thin adapters over services.
-- Avoid new uses of **`EmptyPlugin.instance`**; prefer constructor parameters (`JavaPlugin`, services) so tests stay simple.
+- Avoid new uses of **`SneakyItems.instance`**; prefer constructor parameters (`JavaPlugin`, services) so tests stay simple.
 - Classes loaded by MockBukkit (plugin, commands) must be **`open`** in Kotlin.
-- `CommandBase` sets permission to `{identifier}.command.{name}` using `EmptyPlugin.IDENTIFIER`.
+- `CommandBase` sets permission to `{identifier}.command.{name}` using `SneakyItems.IDENTIFIER`.
 
 ## Testing
 
@@ -82,7 +72,7 @@ Run `./gradlew check` before finishing. Do not rely on `./gradlew runServer` as 
 | Kind of code | Approach |
 |--------------|----------|
 | `util/`, `service/` (no Bukkit) | Plain **JUnit 5** (see `TextUtilityTest` — uses SneakyUtils) |
-| Permissions, command wiring, enable/disable | **MockBukkit** (`mockbukkit-v26.2`, see `EmptyPluginTest`, `CommandBaseTest`) |
+| Permissions, command wiring, enable/disable | **MockBukkit** (`mockbukkit-v26.2`, see `SneakyItemsTest`, `CommandBaseTest`) |
 | Full gameplay / integration | Manual **`runServer`** smoke tests |
 
 MockBukkit lifecycle in every MockBukkit test class:

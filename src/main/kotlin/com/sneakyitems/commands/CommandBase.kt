@@ -1,6 +1,6 @@
-package com.emptyplugin.commands
+package com.sneakyitems.commands
 
-import com.emptyplugin.EmptyPlugin
+import com.sneakyitems.SneakyItems
 import org.bukkit.command.Command
 
 /**
@@ -10,6 +10,6 @@ import org.bukkit.command.Command
 abstract class CommandBase(name: String) : Command(name) {
 
     init {
-        this.permission = "${EmptyPlugin.IDENTIFIER}.command.$name"
+        this.permission = "${SneakyItems.IDENTIFIER}.command.$name"
     }
 }

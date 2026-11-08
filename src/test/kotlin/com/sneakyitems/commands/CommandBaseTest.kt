@@ -1,6 +1,6 @@
-package com.emptyplugin.commands
+package com.sneakyitems.commands
 
-import com.emptyplugin.EmptyPlugin
+import com.sneakyitems.SneakyItems
 import org.bukkit.command.CommandSender
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -17,6 +17,6 @@ class CommandBaseTest {
 
     @Test
     fun permissionFollowsIdentifierAndCommandName() {
-        assertEquals("${EmptyPlugin.IDENTIFIER}.command.reload", TestCommand().permission)
+        assertEquals("${SneakyItems.IDENTIFIER}.command.reload", TestCommand().permission)
     }
 }

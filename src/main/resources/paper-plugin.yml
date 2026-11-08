@@ -11,14 +11,8 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
-    SneakyCharacterManager:
-      load: BEFORE
-      required: false
-      join-classpath: true
-    SneakyVaults:
-      load: BEFORE
-      required: false
-      join-classpath: true
+    # Soft runtime only (inventory/character hooks). Do not loadafter SCM/Vaults —
+    # SCM requires SneakyItems BEFORE it, which would cycle: Items → Vaults → SCM → Items.
 permissions:
   sneakyitems.command.reload:
     description: Reload the plugin configuration.

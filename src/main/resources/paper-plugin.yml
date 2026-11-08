@@ -17,6 +17,9 @@ permissions:
   sneakyitems.command.reload:
     description: Reload the plugin configuration.
     default: op
+  sneakyitems.command.legacy-tags:
+    description: Toggle legacy item-tag mappings in memory (does not edit config).
+    default: op
   sneakyitems.nosoulbound:
     description: Bypass soulbound restrictions while in Creative mode.
     default: false

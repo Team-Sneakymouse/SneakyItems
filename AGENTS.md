@@ -31,7 +31,8 @@ src/main/kotlin/com/sneakyitems/
   SneakyItems.kt              # Bootstrap, reload, listeners
   api/SneakyItemsAPI.kt       # Consumer registration API
   api/MagicItemRegistry.kt    # Owner + PDC namespace registry
-  service/LegacyItemTagMappings.kt
+  service/LegacyItemTagMappings.kt  # data-folder legacy-item-tag-mappings.yml
+  commands/SneakyItemsCommand.kt    # /sneakyitems reload | legacy-tags
 src/main/java/com/sneakyitems/
   platform/SneakyItemsPlatform.java
   util/magicitems/            # Ported MagicSpells magic-item core

@@ -1,4 +1,6 @@
-# Legacy ItemTag mappings (tech debt; re-parsed on /sneakyitems reload)
+# Legacy ItemTag mappings (tech debt).
+# Copied to plugins/SneakyItems/legacy-item-tag-mappings.yml on first run; edit that file on the server.
+# Re-parsed on /sneakyitems reload when load-legacy-item-tag-mappings is true.
 mapping:
     'item-mukpie-voucher':
         internal-name: 'item-mukpie'

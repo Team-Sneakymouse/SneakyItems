@@ -4,5 +4,7 @@ update-item-data: true
 # Hide tooltips on newly parsed definitions when true.
 hide-magic-item-tooltips: false
 
-# Parse bundled legacy ItemTag mappings on startup/reload (tech debt).
+# Parse data-folder legacy-item-tag-mappings.yml on startup/reload (tech debt).
+# Jar ships a default; first enable copies it into the plugin data folder.
+# /sneakyitems legacy-tags on|off toggles processing in memory without changing this flag.
 load-legacy-item-tag-mappings: true

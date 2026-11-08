@@ -1,6 +1,6 @@
 package com.sneakyitems
 
-import com.sneakyitems.commands.ReloadCommand
+import com.sneakyitems.commands.SneakyItemsCommand
 import com.sneakyitems.events.SneakyItemsLoadedEvent
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
@@ -34,14 +34,18 @@ open class SneakyItems : JavaPlugin() {
 
     override fun onEnable() {
         saveDefaultConfig()
+        LegacyItemTagMappings.ensureDataFile(this)
         reloadPlugin()
         lifecycleManager.registerEventHandler(LifecycleEvents.COMMANDS) { event ->
-            event.registrar().register(ReloadCommand(this).create(), "Reload SneakyItems definitions and mappings")
+            event.registrar().register(
+                SneakyItemsCommand(this).create(),
+                "SneakyItems reload and legacy item-tag controls",
+            )
         }
         logger.info("SneakyItems enabled.")
     }
 
-    /** Shared configuration entry point for startup and reload. */
+    /** Shared configuration entry point for startup and reload. Resets runtime legacy-tag enablement from config. */
     fun reloadPlugin() {
         reloadConfig()
         SneakyItemsPlatform.setEnableUpdateItemData(config.getBoolean("update-item-data", true))

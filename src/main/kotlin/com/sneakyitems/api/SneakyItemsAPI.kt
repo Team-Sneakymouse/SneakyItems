@@ -21,6 +21,15 @@ object SneakyItemsAPI {
   fun registerYaml(owner: Plugin, pdcNamespace: String, yamlFile: File): Int =
       MagicItemRegistry.registerFromYaml(owner, pdcNamespace, yamlFile)
 
+  /** MagicsSpells-style file: uses `magic-items:` if present, else flat top-level item keys. */
+  @JvmStatic
+  fun registerMagicItemsFile(owner: Plugin, pdcNamespace: String, yamlFile: File): Int =
+      MagicItemRegistry.registerMagicItemsFile(owner, pdcNamespace, yamlFile)
+
+  @JvmStatic
+  fun registerFromRoot(owner: Plugin, pdcNamespace: String, root: ConfigurationSection): Int =
+      MagicItemRegistry.registerFromRoot(owner, pdcNamespace, root)
+
   @JvmStatic
   fun registerFromStack(
       owner: Plugin,

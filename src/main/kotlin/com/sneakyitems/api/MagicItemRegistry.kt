@@ -62,10 +62,26 @@ object MagicItemRegistry {
     fun registerFromYaml(owner: Plugin, pdcNamespace: String, yamlFile: File): Int {
         if (!yamlFile.isFile) return 0
         val yaml = YamlConfiguration.loadConfiguration(yamlFile)
+        return registerFromRoot(owner, pdcNamespace, yaml)
+    }
+
+    /**
+     * Registers MagicsSpells-style item YAML: prefers a top-level `magic-items:` map,
+     * otherwise treats each top-level key as an item section (flat file).
+     */
+    @JvmStatic
+    fun registerMagicItemsFile(owner: Plugin, pdcNamespace: String, yamlFile: File): Int =
+        registerFromYaml(owner, pdcNamespace, yamlFile)
+
+    @JvmStatic
+    fun registerFromRoot(owner: Plugin, pdcNamespace: String, root: ConfigurationSection): Int {
+        val items = root.getConfigurationSection("magic-items") ?: root
         var count = 0
-        for (key in yaml.getKeys(false)) {
-            val section = yaml.getConfigurationSection(key) ?: continue
-            if (register(owner, pdcNamespace, section) != null) count++
+        for (key in items.getKeys(false)) {
+            val section = items.getConfigurationSection(key) ?: continue
+            SneakyItemsPlatform.applyOwnerNamespace(pdcNamespace)
+            val magicItem = MagicItems.getMagicItemFromSection(section) ?: continue
+            if (register(owner, pdcNamespace, key, magicItem)) count++
         }
         return count
     }

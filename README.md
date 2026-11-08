@@ -11,6 +11,7 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | Entry | Purpose |
 |-------|---------|
 | `com.sneakyitems.api.SneakyItemsAPI` | Register/clear defs, resolve items, match stacks, menu-inventory skip hook |
+| `SneakyItemsAPI.registerMagicItemsFile` | MagicsSpells-style YAML (`magic-items:` wrapper or flat keys) |
 | `com.sneakyitems.api.MagicItemRegistry` | Owner-scoped registration with global internal-name uniqueness |
 | `com.sneakyitems.util.magicitems.MagicItems` | Parser/match/create (MagicSpells-compatible behavior) |
 | `com.sneakyitems.util.items.ItemBehaviors` | Soulbound + expiration apply/update (PDC keys stay `magicspells:*`) |

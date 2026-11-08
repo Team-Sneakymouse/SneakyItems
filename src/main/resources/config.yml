@@ -1,0 +1,8 @@
+# Rebuild player/world items when definitions change (inventory listeners).
+update-item-data: true
+
+# Hide tooltips on newly parsed definitions when true.
+hide-magic-item-tooltips: false
+
+# Parse bundled legacy ItemTag mappings on startup/reload (tech debt).
+load-legacy-item-tag-mappings: true

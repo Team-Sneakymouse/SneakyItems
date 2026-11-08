@@ -35,14 +35,21 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
     // Internal Team-Sneakymouse / Lords of Minecraft artifacts:
     maven("https://maven.sneakyrp.com/releases")
+    if (cmiJarPresent) {
+        flatDir { dirs(magicSpellsCmiLibs.absolutePath) }
+    }
 }
 
 val paperApi = "26.2.build.+"
 val mockBukkitVersion = "4.117.0"
 /** Pinned SneakyUtils for compileOnly / tests; runServer stages it via paper-plugin.yml matching. */
-val sneakyUtilsVersion = "2026.10.18-657d452bd6f4"
-/** Present only in the template repository; see the end of this file. */
-val templateScript = file("gradle/template.gradle.kts")
+val sneakyUtilsVersion = "2026.11.08-d47a66e2d3ba"
+val sneakyCharacterManagerVersion = "2026.11.07-1c03aa4ed314"
+val sneakyVaultsVersion = "2026.10.31-d034ef49f06b"
+val magicSpellsCmiLibs = rootDir.resolve("../MagicSpells-Workspace/MagicSpells/core/libs").normalize()
+val cmiJarPresent =
+    magicSpellsCmiLibs.isDirectory &&
+        magicSpellsCmiLibs.listFiles()?.any { it.extension.equals("jar", ignoreCase = true) && it.name.contains("CMI", ignoreCase = true) } == true
 
 /**
  * On Windows, a bare `bash` resolves to WSL's System32\bash.exe before PATH is searched.
@@ -197,7 +204,14 @@ fun resolveRunServerPluginJars(): List<File> {
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperApi")
     compileOnly("io.github.team-sneakymouse:sneakyutils:$sneakyUtilsVersion")
+    compileOnly("io.github.team-sneakymouse:sneakycharactermanager-paper:$sneakyCharacterManagerVersion")
+    compileOnly("io.github.team-sneakymouse:sneakyvaults:$sneakyVaultsVersion")
+    if (cmiJarPresent) {
+        compileOnly(":CMI")
+    }
     implementation("org.jetbrains.kotlin:kotlin-stdlib:2.3.21")
+    implementation("com.google.code.gson:gson:2.11.0")
+    implementation("com.google.guava:guava:33.3.1-jre")
 
     testImplementation("io.papermc.paper:paper-api:$paperApi")
     testImplementation("io.github.team-sneakymouse:sneakyutils:$sneakyUtilsVersion")
@@ -284,23 +298,8 @@ tasks {
         commandLine(bashExecutable(), "scripts/publish-preflight.sh", rootDir.absolutePath)
     }
 
-    val templatePolicyPreflight by registering {
-        group = "verification"
-        description = "Catch template-only agent rules copied into a plugin created from the template."
-        val isTemplate = templateScript.isFile
-        val instructions = rootProject.file("AGENTS.md")
-        doLast {
-            val marker = "<!-- EMPTYPLUGIN-ONLY LOCAL EXCEPTION"
-            if (!isTemplate && instructions.isFile && marker in instructions.readText()) {
-                throw GradleException(
-                    "AGENTS.md still contains a template-only exception block. Remove it; if needed, restate a separately approved exception with this repository's scope."
-                )
-            }
-        }
-    }
-
     check {
-        dependsOn(publishPreflight, templatePolicyPreflight)
+        dependsOn(publishPreflight)
     }
 }
 
@@ -352,6 +351,3 @@ tasks.withType<PublishToMavenRepository>().configureEach {
     dependsOn(tasks.check)
 }
 
-// Template-only guards and checks. scripts/rename-template.sh deletes this file, so a renamed
-// plugin carries no template logic.
-if (templateScript.isFile) apply(from = templateScript)

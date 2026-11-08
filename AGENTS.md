@@ -16,13 +16,32 @@ Do not substitute remembered rules, a web mirror, or an unlisted path. Follow lo
 
 | | |
 |--|--|
-| Project | SneakyItems (Paper plugin) |
+| Project | SneakyItems (Paper plugin — magic item registry/updater) |
 | Runtime targets | Paper API 26.2, Java/Kotlin JVM 25 |
 | Shared Paper utils | SneakyUtils `compileOnly` + runtime `depend` (see team policy `sneakyutils.md`) |
 | Deployment | push to `main` triggers publish via `.github/workflows/publish.yml` |
 | Build output | `~/.cache/SneakyItems-gradle-build` (keeps Gradle off FUSE/NTFS checkouts; see README) |
 
 Custom item look, CraftEngine/pack model id, server resource pack, or ItemDisplay place/orient → read `<policy-root>/policy/paper-items.md`.
+
+## Magic items (this plugin)
+
+```text
+src/main/kotlin/com/sneakyitems/
+  SneakyItems.kt              # Bootstrap, reload, listeners
+  api/SneakyItemsAPI.kt       # Consumer registration API
+  api/MagicItemRegistry.kt    # Owner + PDC namespace registry
+  service/LegacyItemTagMappings.kt
+src/main/java/com/sneakyitems/
+  platform/SneakyItemsPlatform.java
+  util/magicitems/            # Ported MagicSpells magic-item core
+  util/itemreader/            # Item meta readers
+  util/                       # ItemUtil, parsers, PDC helpers
+```
+
+Soulbound/expiration: **SneakyUtils** `ItemBehaviors` only (no duplicate enforcement).
+
+**Legendary** tier: policy/README only — do not implement in SneakyItems until explicitly tasked.
 
 ## Commands
 

@@ -11,7 +11,18 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
+    SneakyCharacterManager:
+      load: BEFORE
+      required: false
+      join-classpath: true
+    SneakyVaults:
+      load: BEFORE
+      required: false
+      join-classpath: true
 permissions:
   sneakyitems.command.reload:
     description: Reload the plugin configuration.
     default: op
+  sneakyitems.nosoulbound:
+    description: Bypass soulbound restrictions while in Creative mode.
+    default: false

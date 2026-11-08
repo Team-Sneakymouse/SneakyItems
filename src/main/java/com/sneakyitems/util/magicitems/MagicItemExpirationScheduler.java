@@ -2,9 +2,9 @@ package com.sneakyitems.util.magicitems;
 
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import com.sneakyutils.util.items.ItemExpirationScheduler;
+import com.sneakyitems.util.items.ItemExpirationScheduler;
 
-/** Compatibility facade; all scheduling state belongs to SneakyUtils. */
+/** Compatibility facade over SneakyItems {@link ItemExpirationScheduler}. */
 public final class MagicItemExpirationScheduler {
     private MagicItemExpirationScheduler() {}
     public static void scheduleFromItem(Player player, ItemStack item) { ItemExpirationScheduler.scheduleFromItem(player, item); }

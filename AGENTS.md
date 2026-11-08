@@ -39,7 +39,8 @@ src/main/java/com/sneakyitems/
   util/                       # ItemUtil, parsers, PDC helpers
 ```
 
-Soulbound/expiration: **SneakyUtils** `ItemBehaviors` only (no duplicate enforcement).
+Soulbound/expiration: owned here (`com.sneakyitems.util.items.*`, `com.sneakyitems.events.ItemExpireEvent`).
+PDC keys stay `magicspells:soulbound_owner` / `magicspells:expires_at`. Creative bypass: `sneakyitems.nosoulbound` + Creative.
 
 **Legendary** tier: policy/README only — do not implement in SneakyItems until explicitly tasked.
 

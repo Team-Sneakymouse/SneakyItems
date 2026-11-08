@@ -6,7 +6,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
 
-import com.sneakyutils.util.items.ItemBehaviors;
+import com.sneakyitems.util.items.ItemBehaviors;
 
 public final class MagicItemBehaviorKeys {
 

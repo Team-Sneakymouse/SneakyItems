@@ -2,7 +2,7 @@ package com.sneakyitems.util.magicitems;
 
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
-import com.sneakyutils.util.items.ItemBehaviors;
+import com.sneakyitems.util.items.ItemBehaviors;
 
 /** Updater-local snapshot: never parse/rebind an owner or recompute a deadline. */
 record MagicItemBehaviorState(String owner, Long deadline) {

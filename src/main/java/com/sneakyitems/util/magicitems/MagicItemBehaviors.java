@@ -6,10 +6,10 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.Nullable;
-import com.sneakyutils.util.items.ItemBehaviors;
+import com.sneakyitems.util.items.ItemBehaviors;
 import com.sneakyitems.util.magicitems.MagicItemData.MagicItemAttribute;
 
-/** SneakyItemsPlatform definition adapter; SneakyUtils owns persisted behavior and enforcement. */
+/** Definition adapter over SneakyItems-owned soulbound/expiration enforcement. */
 public final class MagicItemBehaviors {
     private MagicItemBehaviors() {}
     public static void applySoulbound(ItemStack item, Player owner) { ItemBehaviors.applySoulbound(item, owner); }

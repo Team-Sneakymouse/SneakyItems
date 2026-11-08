@@ -1,8 +1,8 @@
 # SneakyItems
 
 Paper plugin that owns the LoM **magic item** platform: definition registry, YAML/stack parsing, PDC stamping,
-inventory updater, and legacy ItemTag mappings. Other plugins (notably **MagicSpells**) register definitions via
-the public API without embedding item parsers.
+inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement. Other plugins (notably
+**MagicSpells**) register definitions via the public API without embedding item parsers.
 
 **Legendary items:** documented design only (see [AGENTS.md](./AGENTS.md)); not implemented in this plugin.
 
@@ -13,7 +13,11 @@ the public API without embedding item parsers.
 | `com.sneakyitems.api.SneakyItemsAPI` | Register/clear defs, resolve items, match stacks, menu-inventory skip hook |
 | `com.sneakyitems.api.MagicItemRegistry` | Owner-scoped registration with global internal-name uniqueness |
 | `com.sneakyitems.util.magicitems.MagicItems` | Parser/match/create (MagicSpells-compatible behavior) |
+| `com.sneakyitems.util.items.ItemBehaviors` | Soulbound + expiration apply/update (PDC keys stay `magicspells:*`) |
+| `com.sneakyitems.events.ItemExpireEvent` | Fired before inventory removal of an expired stack |
 | `com.sneakyitems.events.SneakyItemsLoadedEvent` | Fired after SneakyItems reload (MagicSpells can refresh stacks) |
+
+Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 
 ## Usage
 

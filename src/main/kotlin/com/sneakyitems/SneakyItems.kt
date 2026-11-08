@@ -1,10 +1,14 @@
 package com.sneakyitems
 
 import com.sneakyitems.commands.ReloadCommand
-import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.events.SneakyItemsLoadedEvent
+import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.LegacyItemTagMappings
+import com.sneakyitems.util.items.CharacterExpirationHook
+import com.sneakyitems.util.items.ItemExpirationListener
+import com.sneakyitems.util.items.ItemExpirationScheduler
+import com.sneakyitems.util.items.ItemSoulboundListener
 import com.sneakyitems.util.magicitems.MagicItemBehaviorReceiveListener
 import com.sneakyitems.util.magicitems.MagicItemUpdater
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
@@ -51,7 +55,8 @@ open class SneakyItems : JavaPlugin() {
         Bukkit.getPluginManager().callEvent(SneakyItemsLoadedEvent())
     }
 
-  override fun onDisable() {
+    override fun onDisable() {
+        ItemExpirationScheduler.shutdown()
         HandlerList.unregisterAll(this)
         logger.info("SneakyItems disabled.")
     }
@@ -61,6 +66,19 @@ open class SneakyItems : JavaPlugin() {
     private fun registerRuntimeListeners() {
         if (listenersRegistered) return
         val pm = server.pluginManager
+        val expiration = ItemExpirationListener()
+        pm.registerEvents(expiration, this)
+        pm.registerEvents(CharacterExpirationHook(this, expiration), this)
+        pm.registerEvents(ItemSoulboundListener(), this)
+        // Dependents register during enable before the first server tick.
+        val initialPlayers = server.onlinePlayers.toList()
+        if (initialPlayers.isNotEmpty()) {
+            server.scheduler.runTask(this, Runnable {
+                if (isEnabled) {
+                    initialPlayers.filter { it.isOnline }.forEach { expiration.joinOrLoadCharacter(it) }
+                }
+            })
+        }
         pm.registerEvents(MagicItemUpdater.PersistentDataUpdater(), this)
         pm.registerEvents(MagicItemUpdater.ChunkMagicItemListener(), this)
         pm.registerEvents(MagicItemUpdater.CharacterPersistentDataUpdater(), this)

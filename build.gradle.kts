@@ -206,6 +206,8 @@ dependencies {
     compileOnly("io.github.team-sneakymouse:sneakyutils:$sneakyUtilsVersion")
     compileOnly("io.github.team-sneakymouse:sneakycharactermanager-paper:$sneakyCharacterManagerVersion")
     compileOnly("io.github.team-sneakymouse:sneakyvaults:$sneakyVaultsVersion")
+    // optional at runtime: SneakyDiagnostics measures the plugin when installed (integration/Probe.java); never bundled
+    compileOnly("io.github.team-sneakymouse:SneakyDiagnostics-API:2026.10.30-3b422b67e32e")
     if (cmiJarPresent) {
         compileOnly(":CMI")
     }
@@ -217,6 +219,8 @@ dependencies {
     testImplementation("io.github.team-sneakymouse:sneakyutils:$sneakyUtilsVersion")
     testImplementation("io.github.team-sneakymouse:sneakycharactermanager-paper:$sneakyCharacterManagerVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    // a recording fake behind the real shim checks section nesting (ItemTimingTest)
+    testImplementation("io.github.team-sneakymouse:SneakyDiagnostics-API:2026.10.30-3b422b67e32e")
     testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v26.2:$mockBukkitVersion")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

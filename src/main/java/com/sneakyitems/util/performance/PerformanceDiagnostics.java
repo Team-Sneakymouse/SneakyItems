@@ -1,25 +1,64 @@
 package com.sneakyitems.util.performance;
 
-/** No-op diagnostics; ported call sites remain cheap when disabled. */
+import com.sneakyitems.integration.Probe;
+
+/**
+ * Static access to this plugin's SneakyDiagnostics probe for the ported (static) magic-item code.
+ * Without an attached probe (unit tests, before enable) or without a running capture every call returns at once:
+ * names are constants, so nothing is built or allocated. The probe is server-thread only, while matching is public API
+ * other plugins may call from any thread: calls from other threads are not recorded.
+ */
 public final class PerformanceDiagnostics {
 
-    public static final PerformanceExecution EXECUTION = new PerformanceExecution();
+    private static volatile Probe probe;
+    private static volatile Thread serverThread;
 
     private PerformanceDiagnostics() {}
 
-    public static final class PerformanceExecution {
-        public void matchCall() {}
+    /** SneakyItems attaches its probe on enable (server thread) and detaches it on disable. */
+    public static void attach(Probe attached) {
+        serverThread = Thread.currentThread();
+        probe = attached;
+    }
 
-        public AutoCloseable enter(Object operation, Object owner, Object detail) {
-            return () -> {};
-        }
+    public static void detach() {
+        probe = null;
+        serverThread = null;
+    }
 
-        public String owner() {
-            return "sneakyitems";
-        }
+    private static Probe probe() {
+        Probe p = probe;
+        return p != null && Thread.currentThread() == serverThread ? p : null;
+    }
 
-        public Runnable task(String owner, Runnable runnable) {
-            return runnable;
-        }
+    public static long start() {
+        Probe p = probe();
+        return p == null ? 0 : p.start();
+    }
+
+    public static void end(String section, long token) {
+        Probe p = probe();
+        if (p != null && token != 0) p.end(section, token);
+    }
+
+    public static void count(String key) {
+        Probe p = probe();
+        if (p != null) p.count(key);
+    }
+
+    public static void count(String key, long n) {
+        Probe p = probe();
+        if (p != null) p.count(key, n);
+    }
+
+    /** The single sampleDue site is MagicItemUpdater.sampleLevels. */
+    public static boolean sampleDue() {
+        Probe p = probe();
+        return p != null && p.sampleDue();
+    }
+
+    public static void level(String key, long value) {
+        Probe p = probe();
+        if (p != null) p.level(key, value);
     }
 }

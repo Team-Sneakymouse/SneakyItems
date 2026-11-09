@@ -5,7 +5,14 @@ import java.util.function.Predicate;
 
 import org.bukkit.inventory.Inventory;
 
-/** Optional integration hooks (e.g. MagicsSpells menu inventories). */
+import com.sneakyutils.util.DisplayOnlyInventoryHolder;
+
+/**
+ * Optional integration hooks (e.g. MagicsSpells menu inventories).
+ *
+ * <p>GUIs whose holder implements {@link DisplayOnlyInventoryHolder} are skipped without
+ * registering a predicate here; prefer that marker for new menus.
+ */
 public final class SneakyItemsHooks {
 
     private static final CopyOnWriteArrayList<Predicate<Inventory>> menuInventoryChecks = new CopyOnWriteArrayList<>();
@@ -24,6 +31,7 @@ public final class SneakyItemsHooks {
 
     public static boolean isMenuInventory(Inventory inventory) {
         if (inventory == null) return false;
+        if (DisplayOnlyInventoryHolder.isDisplayOnly(inventory)) return true;
         for (Predicate<Inventory> check : menuInventoryChecks) {
             try {
                 if (check.test(inventory)) return true;

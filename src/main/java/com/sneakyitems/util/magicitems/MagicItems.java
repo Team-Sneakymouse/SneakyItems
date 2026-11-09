@@ -47,6 +47,11 @@ public class MagicItems {
 		itemStackCache.clear();
 	}
 
+	/** Entries in the item-data cache (a level for diagnostics). */
+	public static int itemStackCacheSize() {
+		return itemStackCache.size();
+	}
+
 	public static Map<String, MagicItem> getMagicItems() {
 		return magicItems;
 	}
@@ -89,7 +94,7 @@ public class MagicItems {
 	}
 
 	public static boolean matches(MagicItemData pattern, ItemStack stack, boolean pdcIdentityMatch) {
-		PerformanceDiagnostics.EXECUTION.matchCall();
+		PerformanceDiagnostics.count("match.calls");
 		if (pattern == null || stack == null)
 			return false;
 
@@ -114,10 +119,26 @@ public class MagicItems {
 	public static MagicItemData getMagicItemDataFromItemStack(ItemStack itemStack) {
 		if (itemStack == null) return null;
 
+		// The lookup hashes the stack (item and data components) and compares equal keys. It is counted, not timed:
+		// legacy tagging runs it once per mapping (~1.5k per item), so a per-call timer would add ~40 ns each and
+		// inflate the very path it measures. Its cost is in the enclosing item.tag/item.update self time.
 		MagicItemData cached = itemStackCache.get(itemStack);
 		// We can do this because itemStackCache doesn't have any null values
-		if (cached != null) return cached;
+		if (cached != null) {
+			PerformanceDiagnostics.count("item-data.cache-hits");
+			return cached;
+		}
+		PerformanceDiagnostics.count("item-data.cache-misses");
+		long extract = PerformanceDiagnostics.start();
+		try {
+			return extractMagicItemData(itemStack);
+		} finally {
+			PerformanceDiagnostics.end("item-data.extract", extract);
+		}
+	}
 
+	/** Reads every supported attribute of the stack's meta and caches the result (a cache miss). */
+	private static MagicItemData extractMagicItemData(ItemStack itemStack) {
 		MagicItemData data = new MagicItemData();
 
 		// type

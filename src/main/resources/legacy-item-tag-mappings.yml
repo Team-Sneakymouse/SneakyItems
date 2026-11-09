@@ -5583,7 +5583,6 @@ mapping:
                 - HIDE_ENCHANTS
                 - HIDE_ATTRIBUTES
                 - HIDE_ADDITIONAL_TOOLTIP
-                unhandled: H4sIAAAAAAAA/+NiYOBiEMnNzEtNLkpMK7FKqUxNiU/Oz8kvYmZgLkpPYliQ6sDIwF+ckV8en5kXX5Kfn1OSWcDAwAAAyHnBEjkAAAA=
                 custom-color:
                     ==: Color
                     ALPHA: 255

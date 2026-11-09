@@ -21,6 +21,7 @@ import org.bukkit.inventory.PlayerInventory;
 
 
 
+import com.sneakyitems.api.SneakyItemsHooks;
 import com.sneakyitems.util.items.ItemBehaviors.ExpirationResult;
 
 public class ItemExpirationListener implements Listener {
@@ -41,6 +42,8 @@ public class ItemExpirationListener implements Listener {
 
 	@EventHandler(priority = EventPriority.LOWEST)
 	private void onInvOpen(InventoryOpenEvent event) {
+		if (SneakyItemsHooks.isMenuInventory(event.getInventory()))
+			return;
 		Player player = event.getPlayer() instanceof Player p ? p : null;
 		processInventory(event.getInventory(), player);
 	}

@@ -43,7 +43,7 @@ repositories {
 val paperApi = "26.2.build.+"
 val mockBukkitVersion = "4.117.0"
 /** Pinned SneakyUtils for compileOnly / tests; runServer stages it via paper-plugin.yml matching. */
-val sneakyUtilsVersion = "2026.11.08-d47a66e2d3ba"
+val sneakyUtilsVersion = "2026.11.09-aa63618e063b"
 val sneakyCharacterManagerVersion = "2026.11.07-1c03aa4ed314"
 val sneakyVaultsVersion = "2026.10.31-d034ef49f06b"
 val magicSpellsCmiLibs = rootDir.resolve("../MagicSpells-Workspace/MagicSpells/core/libs").normalize()

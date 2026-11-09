@@ -11,6 +11,8 @@ import org.bukkit.persistence.PersistentDataType;
 
 import org.jetbrains.annotations.Nullable;
 
+import com.sneakyitems.util.performance.PerformanceDiagnostics;
+
 /**
  * Legacy ItemTag pattern mappings (pre-PDC stacks).
  * Applies the {@code magicitem} PDC name so the updater can rebuild pre-PDC stacks.
@@ -41,6 +43,13 @@ public final class MagicItemTagging {
 		return !REGISTRY.isEmpty();
 	}
 
+	/** Registered mappings across owners (a level for diagnostics). */
+	public static int mappingCount() {
+		int count = 0;
+		for (Collection<TagMapping> mappings : REGISTRY.values()) count += mappings.size();
+		return count;
+	}
+
 	/**
 	 * If the stack matches a registered mapping but lacks the correct {@code magicitem} name,
 	 * sets that PDC value and returns a new stack. Does not rebuild attributes — call the updater after.
@@ -65,22 +74,29 @@ public final class MagicItemTagging {
 
 		String currentName = meta.getPersistentDataContainer().get(nameKey(), PersistentDataType.STRING);
 
-		for (Collection<TagMapping> mappings : REGISTRY.values()) {
-			for (TagMapping tagMapping : mappings) {
-				if (!MagicItems.matches(tagMapping.patternData(), item))
-					continue;
-				if (tagMapping.internalName().equals(currentName))
-					return TagResult.unchanged(item);
+		int checked = 0;
+		try {
+			for (Collection<TagMapping> mappings : REGISTRY.values()) {
+				for (TagMapping tagMapping : mappings) {
+					checked++;
+					if (!MagicItems.matches(tagMapping.patternData(), item))
+						continue;
+					if (tagMapping.internalName().equals(currentName))
+						return TagResult.unchanged(item);
 
-				ItemStack tagged = item.clone();
-				ItemMeta taggedMeta = tagged.getItemMeta();
-				if (taggedMeta == null)
-					return TagResult.unchanged(item);
-				taggedMeta.getPersistentDataContainer().set(nameKey(), PersistentDataType.STRING,
-						tagMapping.internalName());
-				tagged.setItemMeta(taggedMeta);
-				return new TagResult(tagged, true, tagMapping.internalName(), tagMapping.magicItem());
+					ItemStack tagged = item.clone();
+					ItemMeta taggedMeta = tagged.getItemMeta();
+					if (taggedMeta == null)
+						return TagResult.unchanged(item);
+					taggedMeta.getPersistentDataContainer().set(nameKey(), PersistentDataType.STRING,
+							tagMapping.internalName());
+					tagged.setItemMeta(taggedMeta);
+					PerformanceDiagnostics.count("items.tagged");
+					return new TagResult(tagged, true, tagMapping.internalName(), tagMapping.magicItem());
+				}
 			}
+		} finally {
+			PerformanceDiagnostics.count("tag.mapping-checks", checked);
 		}
 
 		return TagResult.unchanged(item);

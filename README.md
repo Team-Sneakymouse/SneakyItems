@@ -25,6 +25,14 @@ Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 Run `/sneakyitems reload` in-game or `sneakyitems reload` from the console to re-read `plugins/SneakyItems/config.yml`.
 The permission is `sneakyitems.command.reload` (default: operators).
 
+## Diagnostics
+
+Measured by [SneakyDiagnostics](https://github.com/Team-Sneakymouse/SneakyDiagnostics) when it is installed (optional): `/diagnostics plugins start 60 SneakyItems`.
+Setup and rules: [plugin-providers.md](https://github.com/Team-Sneakymouse/SneakyDiagnostics/blob/main/docs/plugin-providers.md).
+Sections: `event.inventory-open`, `event.chunk-load`, `event.item-spawn`, `task.loaded-chunk-scan`, `player.load-inventories`, `player.process-inventories`, `inventory.process` (with `inventory.read-contents`, `inventory.items`, `inventory.write-contents`), per item `item.tag`, `item.update`, `item.rebuild`, `item.rebuild.container-contents`, and `item-data.extract` (reading the meta on an item-data cache miss); counts: `items.processed`, `items.magic`, `items.version-current`, `items.stamped`, `items.rebuilt`, `items.tagged`, `inventory.slots`, `match.calls`, `tag.mapping-checks`, `item-data.cache-hits`, `item-data.cache-misses`; levels: `item-data.cache-size`, `tag.mappings`, `magic-items.registered` (sampled while inventories are processed, so idle seconds have no sample).
+Items inside a rebuilt container item are counted but not timed per item (their time is in `item.rebuild.container-contents`).
+Cache lookups (each hashes the stack and compares equal keys) are counted (`item-data.cache-hits` + `item-data.cache-misses`), not timed one by one: legacy tagging checks every item against every mapping (about 1.5k), and a timer per lookup (~40 ns while recording) would inflate the path it measures. Their cost is in `item.tag` self time: divide by `tag.mapping-checks` for the cost per mapping check (lookup and comparison together). `match.calls` and the cache counts include calls from other plugins (MagicSpells matching) on the server thread; calls from other threads are not recorded.
+
 ## Development
 
 | Task | Command |

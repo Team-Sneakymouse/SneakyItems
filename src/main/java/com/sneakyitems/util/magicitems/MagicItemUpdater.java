@@ -44,6 +44,7 @@ import com.sneakyitems.platform.SneakyItemsPlatform;
 import com.sneakyitems.api.SneakyItemsHooks;
 import com.sneakyutils.util.io.AtomicFiles;
 import com.sneakyitems.util.compat.CompatBasics;
+import com.sneakyitems.util.performance.PerformanceDiagnostics;
 import com.sneakyitems.events.SneakyItemsLoadedEvent;
 import com.sneakyitems.util.magicitems.MagicItemBehaviors.ExpirationResult;
 import com.sneakyitems.util.magicitems.MagicItemData.MagicItemAttribute;
@@ -65,6 +66,8 @@ public class MagicItemUpdater {
     private static final NamespacedKey NAME_KEY = MagicItemBehaviorKeys.magicItem();
     private static final NamespacedKey VERSION_KEY = MagicItemBehaviorKeys.magicItemVersion();
     private static final NamespacedKey SOULBOUND_OWNER_KEY = MagicItemBehaviorKeys.soulboundOwner();
+    /** Above 0 while a rebuilt container item's own contents are processed: their items are counted, not timed. */
+    private static int containerDepth = 0;
 
     // Active updating of items on login/inventory open
     public static class PersistentDataUpdater implements Listener {
@@ -86,22 +89,32 @@ public class MagicItemUpdater {
         public void joinOrLoadCharacter(Player player) {
             if (!shouldProcessItems())
                 return;
-            processInventory(player.getInventory(), player);
-            PlayerInventory inv = player.getInventory();
-            ItemStack[] armor = inv.getArmorContents();
-            processItemStacks(armor, player);
-            inv.setArmorContents(armor);
-            processInventory(player.getEnderChest(), player);
+            long t = PerformanceDiagnostics.start();
+            try {
+                processInventory(player.getInventory(), player);
+                PlayerInventory inv = player.getInventory();
+                ItemStack[] armor = inv.getArmorContents();
+                processItemStacks(armor, player);
+                inv.setArmorContents(armor);
+                processInventory(player.getEnderChest(), player);
+            } finally {
+                PerformanceDiagnostics.end("player.load-inventories", t);
+            }
         }
 
         @EventHandler(priority = EventPriority.LOWEST)
         public void onInvOpen(InventoryOpenEvent event) {
             if (!shouldProcessItems())
                 return;
-            if (isBagOfHoldingGui(event.getInventory()))
-                return;
-            Player player = event.getPlayer() instanceof Player p ? p : null;
-            processInventory(event.getInventory(), player);
+            long t = PerformanceDiagnostics.start();
+            try {
+                if (isBagOfHoldingGui(event.getInventory()))
+                    return;
+                Player player = event.getPlayer() instanceof Player p ? p : null;
+                processInventory(event.getInventory(), player);
+            } finally {
+                PerformanceDiagnostics.end("event.inventory-open", t);
+            }
         }
     }
 
@@ -124,19 +137,24 @@ public class MagicItemUpdater {
             new BukkitRunnable() {
                 @Override
                 public void run() {
-                    int processed = 0;
-                    while (processed++ < chunksPerTick && !chunks.isEmpty()) {
-                        Chunk chunk = chunks.poll();
-                        if (chunk == null || !chunk.isLoaded())
-                            continue;
+                    long t = PerformanceDiagnostics.start();
+                    try {
+                        int processed = 0;
+                        while (processed++ < chunksPerTick && !chunks.isEmpty()) {
+                            Chunk chunk = chunks.poll();
+                            if (chunk == null || !chunk.isLoaded())
+                                continue;
 
-                        for (Entity entity : chunk.getEntities()) {
-                            processGroundEntityIfNeeded(entity);
+                            for (Entity entity : chunk.getEntities()) {
+                                processGroundEntityIfNeeded(entity);
+                            }
                         }
-                    }
 
-                    if (chunks.isEmpty())
-                        cancel();
+                        if (chunks.isEmpty())
+                            cancel();
+                    } finally {
+                        PerformanceDiagnostics.end("task.loaded-chunk-scan", t);
+                    }
                 }
             }.runTaskTimer(SneakyItemsPlatform.getInstance(), 1L, 1L);
         }
@@ -146,8 +164,13 @@ public class MagicItemUpdater {
             if (!shouldProcessItems())
                 return;
 
-            for (Entity entity : event.getChunk().getEntities()) {
-                processGroundEntityIfNeeded(entity);
+            long t = PerformanceDiagnostics.start();
+            try {
+                for (Entity entity : event.getChunk().getEntities()) {
+                    processGroundEntityIfNeeded(entity);
+                }
+            } finally {
+                PerformanceDiagnostics.end("event.chunk-load", t);
             }
         }
 
@@ -165,7 +188,12 @@ public class MagicItemUpdater {
             if (item.getThrower() != null)
                 return;
 
-            processItemEntityIfNeeded(item);
+            long t = PerformanceDiagnostics.start();
+            try {
+                processItemEntityIfNeeded(item);
+            } finally {
+                PerformanceDiagnostics.end("event.item-spawn", t);
+            }
         }
 
         private static void processGroundEntityIfNeeded(Entity entity) {
@@ -216,20 +244,47 @@ public class MagicItemUpdater {
     public static void processPlayerInventories(Player player) {
         if (player == null)
             return;
-        processInventory(player.getInventory(), player);
-        PlayerInventory inv = player.getInventory();
-        ItemStack[] armor = inv.getArmorContents();
-        processItemStacks(armor, player);
-        inv.setArmorContents(armor);
-        processInventory(player.getEnderChest(), player);
+        long t = PerformanceDiagnostics.start();
+        try {
+            processInventory(player.getInventory(), player);
+            PlayerInventory inv = player.getInventory();
+            ItemStack[] armor = inv.getArmorContents();
+            processItemStacks(armor, player);
+            inv.setArmorContents(armor);
+            processInventory(player.getEnderChest(), player);
+        } finally {
+            PerformanceDiagnostics.end("player.process-inventories", t);
+        }
     }
 
     public static void processInventory(Inventory inv, @Nullable Player player) {
         if (inv == null || SneakyItemsHooks.isMenuInventory(inv) || isBagOfHoldingGui(inv))
             return;
-        ItemStack[] contents = inv.getContents();
-        processItemStacks(contents, player);
-        inv.setContents(contents);
+        sampleLevels();
+        long t = PerformanceDiagnostics.start();
+        try {
+            long phase = PerformanceDiagnostics.start();
+            ItemStack[] contents = inv.getContents();
+            PerformanceDiagnostics.end("inventory.read-contents", phase);
+            PerformanceDiagnostics.count("inventory.slots", contents.length);
+            long items = PerformanceDiagnostics.start();
+            processItemStacks(contents, player);
+            PerformanceDiagnostics.end("inventory.items", items);
+            long write = PerformanceDiagnostics.start();
+            inv.setContents(contents);
+            PerformanceDiagnostics.end("inventory.write-contents", write);
+        } finally {
+            PerformanceDiagnostics.end("inventory.process", t);
+        }
+    }
+
+    /** The plugin's single sampleDue site: about once a second while inventories are being processed. */
+    private static void sampleLevels() {
+        if (!PerformanceDiagnostics.sampleDue())
+            return;
+        PerformanceDiagnostics.level("item-data.cache-size", MagicItems.itemStackCacheSize());
+        PerformanceDiagnostics.level("tag.mappings", MagicItemTagging.mappingCount());
+        PerformanceDiagnostics.level("magic-items.registered", magicItems.size());
     }
 
     public static void processItemStacks(ItemStack[] items, @Nullable Player player) {
@@ -251,14 +306,30 @@ public class MagicItemUpdater {
         if (itemStack == null)
             return null;
 
-        MagicItemTagging.TagResult tagResult = MagicItemTagging.applyTagIfNeeded(itemStack);
+        PerformanceDiagnostics.count("items.processed");
+        boolean timed = containerDepth == 0;
+        // One section per item: each item is checked against every legacy mapping (about 1.5k), so the item, not a
+        // single lookup, is the unit of work (a section costs ~40 ns while recording). Ended on every path: this is
+        // public API that can run without an enclosing section.
+        long tag = timed ? PerformanceDiagnostics.start() : 0;
+        MagicItemTagging.TagResult tagResult;
+        try {
+            tagResult = MagicItemTagging.applyTagIfNeeded(itemStack);
+        } finally {
+            PerformanceDiagnostics.end("item.tag", tag);
+        }
         ItemStack stack = tagResult.stack();
         boolean tagged = tagResult.tagged();
 
         if (tagged || SneakyItemsPlatform.enableUpdateItemData()) {
-            ItemStack updated = updateMagicItemItemStackIfNeeded(stack);
-            if (updated != stack)
-                stack = updated;
+            long update = timed ? PerformanceDiagnostics.start() : 0;
+            try {
+                ItemStack updated = updateMagicItemItemStackIfNeeded(stack);
+                if (updated != stack)
+                    stack = updated;
+            } finally {
+                PerformanceDiagnostics.end("item.update", update);
+            }
         }
 
         if (tagged) {
@@ -323,10 +394,13 @@ public class MagicItemUpdater {
         if (magicItem == null)
             return itemStack;
 
+        PerformanceDiagnostics.count("items.magic");
         long definitionVersion = magicItem.getDefinitionVersion();
         Long stampedVersion = container.get(VERSION_KEY, PersistentDataType.LONG);
-        if (stampedVersion != null && stampedVersion == definitionVersion)
+        if (stampedVersion != null && stampedVersion == definitionVersion) {
+            PerformanceDiagnostics.count("items.version-current");
             return itemStack;
+        }
 
         // Ignore transient soulbound ownership when determining whether a magic item needs updating.
         ItemStack compareStack = itemStack;
@@ -344,10 +418,20 @@ public class MagicItemUpdater {
 
         if (magicItemData == null || stackData == null)
             return itemStack;
-        if (MagicItems.matches(magicItemData, compareStack, false))
+        if (MagicItems.matches(magicItemData, compareStack, false)) {
+            PerformanceDiagnostics.count("items.stamped");
             return MagicItemDefinitionVersions.ensureStamped(itemStack, definitionVersion);
+        }
 
-        return updateItem(itemStack, magicItem);
+        long t = containerDepth == 0 ? PerformanceDiagnostics.start() : 0;
+        try {
+            ItemStack rebuilt = updateItem(itemStack, magicItem);
+            if (rebuilt != itemStack)
+                PerformanceDiagnostics.count("items.rebuilt");
+            return rebuilt;
+        } finally {
+            PerformanceDiagnostics.end("item.rebuild", t);
+        }
     }
 
     public static ItemStack updateItem(ItemStack itemStack, MagicItem magicItem) {
@@ -425,7 +509,14 @@ public class MagicItemUpdater {
 
         if (meta instanceof BlockStateMeta updatedBlockStateMeta && blockInventory != null) {
             ItemStack[] contents = blockInventory.getContents();
-            processItemStacks(contents, null);
+            long t = containerDepth == 0 ? PerformanceDiagnostics.start() : 0;
+            containerDepth++;
+            try {
+                processItemStacks(contents, null);
+            } finally {
+                containerDepth--;
+                PerformanceDiagnostics.end("item.rebuild.container-contents", t);
+            }
             Container updatedContainer = (Container) updatedBlockStateMeta.getBlockState();
             updatedContainer.getInventory().setContents(contents);
             updatedBlockStateMeta.setBlockState(updatedContainer);

@@ -2,6 +2,7 @@ package com.sneakyitems
 
 import com.sneakyitems.commands.SneakyItemsCommand
 import com.sneakyitems.events.SneakyItemsLoadedEvent
+import com.sneakyitems.integration.Probe
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.LegacyItemTagMappings
@@ -11,6 +12,7 @@ import com.sneakyitems.util.items.ItemExpirationScheduler
 import com.sneakyitems.util.items.ItemSoulboundListener
 import com.sneakyitems.util.magicitems.MagicItemBehaviorReceiveListener
 import com.sneakyitems.util.magicitems.MagicItemUpdater
+import com.sneakyitems.util.performance.PerformanceDiagnostics
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.Bukkit
 import org.bukkit.event.HandlerList
@@ -27,6 +29,9 @@ open class SneakyItems : JavaPlugin() {
         }
     }
 
+    /** SneakyDiagnostics measurements (optional); sections and counts are listed in the README. */
+    val probe = Probe(this, "sneakyitems-ticks-1")
+
     override fun onLoad() {
         instance = this
         SneakyItemsPlatform.init(this)
@@ -42,6 +47,8 @@ open class SneakyItems : JavaPlugin() {
                 "SneakyItems reload and legacy item-tag controls",
             )
         }
+        PerformanceDiagnostics.attach(probe)
+        probe.hook()
         logger.info("SneakyItems enabled.")
     }
 
@@ -60,6 +67,8 @@ open class SneakyItems : JavaPlugin() {
     }
 
     override fun onDisable() {
+        probe.unhook()
+        PerformanceDiagnostics.detach()
         ItemExpirationScheduler.shutdown()
         HandlerList.unregisterAll(this)
         logger.info("SneakyItems disabled.")

@@ -11,6 +11,11 @@ dependencies:
       load: BEFORE
       required: true
       join-classpath: true
+    # Optional: measurements only (integration/Probe.java). join-classpath lets the probe see its API.
+    SneakyDiagnostics:
+      load: BEFORE
+      required: false
+      join-classpath: true
     # Soft runtime only (inventory/character hooks). Do not loadafter SCM/Vaults —
     # SCM requires SneakyItems BEFORE it, which would cycle: Items → Vaults → SCM → Items.
 permissions:

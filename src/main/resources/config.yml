@@ -1,6 +1,16 @@
 # Rebuild player/world items when definitions change (inventory listeners).
 update-item-data: true
 
+# Rate limit for bulk item re-checks: entity loads, /sneakyitems reload, and definition changes
+# from other plugins (for example /ms reload). Work is queued and drained every tick.
+item-recheck:
+  # Item entities / item displays checked per tick (10 is about 200 per second).
+  entities-per-tick: 10
+  # Online players whose inventories are checked per tick.
+  players-per-tick: 1
+  # Ticks with no new registrations before a burst of definition changes counts as done.
+  definition-settle-ticks: 20
+
 # Hide tooltips on newly parsed definitions when true.
 hide-magic-item-tooltips: false
 

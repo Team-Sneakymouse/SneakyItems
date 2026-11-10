@@ -68,8 +68,9 @@ public final class MagicItemTagging {
 			return TagResult.unchanged(item);
 		}
 
-		MagicItemData itemData = MagicItems.getMagicItemDataFromItemStack(item);
-		if (itemData == null)
+		// Read the stack once; every mapping below matches against this instead of re-hashing the stack.
+		MagicItems.PreparedStack prepared = MagicItems.prepare(item);
+		if (prepared == null)
 			return TagResult.unchanged(item);
 
 		String currentName = meta.getPersistentDataContainer().get(nameKey(), PersistentDataType.STRING);
@@ -79,7 +80,7 @@ public final class MagicItemTagging {
 			for (Collection<TagMapping> mappings : REGISTRY.values()) {
 				for (TagMapping tagMapping : mappings) {
 					checked++;
-					if (!MagicItems.matches(tagMapping.patternData(), item))
+					if (!MagicItems.matches(tagMapping.patternData(), prepared, true))
 						continue;
 					if (tagMapping.internalName().equals(currentName))
 						return TagResult.unchanged(item);

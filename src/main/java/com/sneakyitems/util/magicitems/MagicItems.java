@@ -41,7 +41,14 @@ import static com.sneakyitems.util.magicitems.MagicItemData.MagicItemAttribute.*
 public class MagicItems {
 
 	private static final Map<String, MagicItem> magicItems = new HashMap<>();
-	private static final Map<ItemStack, MagicItemData> itemStackCache = new HashMap<>();
+	/** Cap on cached stacks; without it the cache keeps every stack ever seen for the server's lifetime. */
+	private static final int ITEM_STACK_CACHE_MAX = 20_000;
+	private static final Map<ItemStack, MagicItemData> itemStackCache = new java.util.LinkedHashMap<>(1024, 0.75f, false) {
+		@Override
+		protected boolean removeEldestEntry(Map.Entry<ItemStack, MagicItemData> eldest) {
+			return size() > ITEM_STACK_CACHE_MAX;
+		}
+	};
 
 	public static void clearItemStackCache() {
 		itemStackCache.clear();
@@ -114,6 +121,43 @@ public class MagicItems {
 			stackIgnored.add(MagicItemAttribute.ITEM_MODEL);
 
 		return pattern.matches(stackData, stackIgnored);
+	}
+
+	/**
+	 * A stack's match inputs, read once. Matching one stack against many patterns (legacy tagging checks ~1.5k)
+	 * would otherwise re-hash the whole stack, lore included, and re-read its PDC for every pattern.
+	 */
+	public record PreparedStack(String magicItemName, MagicItemData data, EnumSet<MagicItemAttribute> ignored) {
+	}
+
+	/** Reads the stack's name, data and ignored attributes once; null when the stack has no data. */
+	public static PreparedStack prepare(ItemStack stack) {
+		if (stack == null)
+			return null;
+		MagicItemData stackData = getMagicItemDataFromItemStack(stack);
+		if (stackData == null)
+			return null;
+
+		EnumSet<MagicItemAttribute> stackIgnored = MagicItemIgnoredAttributes.fromItemStack(stack);
+		if (DataUtil.getString(stack, "transmogrified") != null)
+			stackIgnored.add(MagicItemAttribute.ITEM_MODEL);
+
+		return new PreparedStack(MagicItemBehaviorKeys.getMagicItemName(stack), stackData, stackIgnored);
+	}
+
+	/** Same result as {@link #matches(MagicItemData, ItemStack, boolean)} with a stack prepared by {@link #prepare}. */
+	public static boolean matches(MagicItemData pattern, PreparedStack prepared, boolean pdcIdentityMatch) {
+		PerformanceDiagnostics.count("match.calls");
+		if (pattern == null || prepared == null)
+			return false;
+
+		if (pdcIdentityMatch && pattern.hasAttribute(MAGIC_ITEM_NAME)) {
+			String patternName = (String) pattern.getAttribute(MAGIC_ITEM_NAME);
+			if (patternName != null && patternName.equals(prepared.magicItemName()))
+				return true;
+		}
+
+		return pattern.matches(prepared.data(), EnumSet.copyOf(prepared.ignored()));
 	}
 
 	public static MagicItemData getMagicItemDataFromItemStack(ItemStack itemStack) {

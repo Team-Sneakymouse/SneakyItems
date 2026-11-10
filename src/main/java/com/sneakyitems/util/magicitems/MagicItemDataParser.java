@@ -115,6 +115,11 @@ public class MagicItemDataParser {
 						case "name":
 							data.setAttribute(NAME, ItemParseUtil.getMiniMessage(value.getAsString()));
 							break;
+						case "itemname":
+						case "item-name":
+						case "item_name":
+							data.setAttribute(ITEM_NAME, ItemParseUtil.getMiniMessage(value.getAsString()));
+							break;
 						case "amount":
 							data.setAttribute(AMOUNT, value.getAsInt());
 							break;

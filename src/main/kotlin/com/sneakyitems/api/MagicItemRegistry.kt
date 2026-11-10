@@ -100,6 +100,12 @@ object MagicItemRegistry {
             internalName,
         )
         val magicItem = MagicItems.getMagicItemFromData(data) ?: return null
+        // a version from the template's data, so held copies are rebuilt when the owner changes the template
+        // (left at 0, a copy stamped once is skipped by the updater forever)
+        com.sneakyitems.util.magicitems.MagicItemDefinitionVersions.applyToMagicItem(
+            magicItem,
+            com.sneakyitems.util.magicitems.MagicItemDefinitionVersions.fingerprintString(data.toString()),
+        )
         return if (register(owner, pdcNamespace, internalName, magicItem)) magicItem else null
     }
 

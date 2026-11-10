@@ -411,7 +411,7 @@ public class MagicItems {
 		partial.setAttribute(attr, source.getAttribute(attr));
 
 		switch (attr) {
-			case NAME -> NameHandler.processItemMeta(meta, partial);
+			case NAME, ITEM_NAME -> NameHandler.processItemMeta(meta, partial);
 			case LORE -> LoreHandler.processItemMeta(meta, partial);
 			case DURABILITY -> {
 				if (ItemUtil.hasDurability(item.getType())) DurabilityHandler.processItemMeta(meta, partial);
@@ -506,6 +506,7 @@ public class MagicItems {
 	private static void clearMagicItemAttribute(ItemStack item, ItemMeta meta, MagicItemAttribute attr) {
 		switch (attr) {
 			case NAME -> meta.displayName(null);
+			case ITEM_NAME -> meta.itemName(null);
 			case LORE -> meta.lore(null);
 			case DURABILITY -> {
 				if (meta instanceof org.bukkit.inventory.meta.Damageable damageable) damageable.setDamage(0);

@@ -14,7 +14,7 @@ final class MagicItemPdcMigration {
         // Filter a detached copy so the original item is never modified.
         PersistentDataContainer carried = target.getAdapterContext().newPersistentDataContainer();
         source.copyTo(carried, true);
-        for (NamespacedKey key : carried.getKeys()) {
+        for (NamespacedKey key : new java.util.ArrayList<>(carried.getKeys())) {
             if (key.getNamespace().equals(namespace)
                     && (key.getKey().startsWith(ItemPdcKeys.PERMANENT_PREFIX)
                     || key.getKey().equals("tags")

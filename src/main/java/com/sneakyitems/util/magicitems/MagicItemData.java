@@ -226,7 +226,7 @@ public class MagicItemData {
 						if (strictEnchantLevel ? compare != 0 : compare > 0) return false;
 					}
 				}
-				case NAME -> {
+				case NAME, ITEM_NAME -> {
 					Component nameSelf = (Component) itemAttributes.get(attr);
 					Component nameOther = (Component) data.itemAttributes.get(attr);
 					if (!ItemParseUtil.getLegacyFromComponent(nameSelf).equals(ItemParseUtil.getLegacyFromComponent(nameOther)))
@@ -298,6 +298,7 @@ public class MagicItemData {
 
 		TYPE(Material.class),
 		NAME(Component.class),
+		ITEM_NAME(Component.class),
 		AMOUNT(Integer.class),
 		DURABILITY(Integer.class),
 		REPAIR_COST(Integer.class),
@@ -376,6 +377,18 @@ public class MagicItemData {
 			output
 				.append("\"name\":\"")
 				.append(TxtUtil.escapeJSON(ItemParseUtil.getStringFromComponent((Component) getAttribute(MagicItemAttribute.NAME))))
+				.append('"');
+
+			previous = true;
+		}
+
+		if (hasAttribute(MagicItemAttribute.ITEM_NAME)) {
+			if (previous) output.append(',');
+			else output.append('{');
+
+			output
+				.append("\"item-name\":\"")
+				.append(TxtUtil.escapeJSON(ItemParseUtil.getStringFromComponent((Component) getAttribute(MagicItemAttribute.ITEM_NAME))))
 				.append('"');
 
 			previous = true;

@@ -1,6 +1,7 @@
 package com.sneakyitems.api
 
 import com.sneakyitems.platform.SneakyItemsPlatform
+import com.sneakyitems.service.DefinitionChangeTracker
 import com.sneakyitems.util.magicitems.MagicItem
 import com.sneakyitems.util.magicitems.MagicItems
 import org.bukkit.configuration.ConfigurationSection
@@ -19,6 +20,10 @@ object MagicItemRegistry {
     private val ownersByName = ConcurrentHashMap<String, Plugin>()
     private val namespaceByOwner = ConcurrentHashMap<Plugin, String>()
     private val defsByOwner = ConcurrentHashMap<Plugin, MutableSet<String>>()
+
+    /** Marked on every register and clear. SneakyItems re-checks stacks once changes settle. */
+    @JvmStatic
+    val changes = DefinitionChangeTracker()
 
     @JvmStatic
     fun register(owner: Plugin, pdcNamespace: String, internalName: String, item: MagicItem): Boolean {
@@ -43,6 +48,7 @@ object MagicItemRegistry {
         MagicItems.getMagicItems()[internalName] = parsed
         ownersByName[internalName] = owner
         defsByOwner.computeIfAbsent(owner) { ConcurrentHashMap.newKeySet() }.add(internalName)
+        changes.markDirty()
         return true
     }
 
@@ -121,6 +127,7 @@ object MagicItemRegistry {
             }
         }
         MagicItems.clearItemStackCache()
+        changes.markDirty()
     }
 
     @JvmStatic

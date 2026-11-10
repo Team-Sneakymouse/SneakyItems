@@ -2,7 +2,9 @@ package com.sneakyitems
 
 import com.sneakyitems.commands.SneakyItemsCommand
 import com.sneakyitems.events.SneakyItemsLoadedEvent
+import com.sneakyitems.api.MagicItemRegistry
 import com.sneakyitems.integration.Probe
+import com.sneakyitems.listener.ItemRecheckService
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.LegacyItemTagMappings
@@ -31,6 +33,9 @@ open class SneakyItems : JavaPlugin() {
 
     /** SneakyDiagnostics measurements (optional); sections and counts are listed in the README. */
     val probe = Probe(this, "sneakyitems-ticks-1")
+
+    /** Queued, rate-limited re-checks of loaded item entities, item displays and online players. */
+    val recheck = ItemRecheckService(this, MagicItemRegistry.changes)
 
     override fun onLoad() {
         instance = this
@@ -63,10 +68,14 @@ open class SneakyItems : JavaPlugin() {
             LegacyItemTagMappings.clear(this)
         }
         registerRuntimeListeners()
+        recheck.entitiesPerTick = config.getInt("item-recheck.entities-per-tick", 10).coerceAtLeast(1)
+        recheck.playersPerTick = config.getInt("item-recheck.players-per-tick", 1).coerceAtLeast(1)
+        MagicItemRegistry.changes.settleTicks = config.getInt("item-recheck.definition-settle-ticks", 20).coerceAtLeast(1)
         Bukkit.getPluginManager().callEvent(SneakyItemsLoadedEvent())
     }
 
     override fun onDisable() {
+        recheck.stop()
         probe.unhook()
         PerformanceDiagnostics.detach()
         ItemExpirationScheduler.shutdown()
@@ -94,6 +103,8 @@ open class SneakyItems : JavaPlugin() {
         }
         pm.registerEvents(MagicItemUpdater.PersistentDataUpdater(), this)
         pm.registerEvents(MagicItemUpdater.ChunkMagicItemListener(), this)
+        pm.registerEvents(recheck, this)
+        recheck.start()
         pm.registerEvents(MagicItemUpdater.CharacterPersistentDataUpdater(), this)
         pm.registerEvents(MagicItemBehaviorReceiveListener(), this)
         pm.registerEvents(OwnerDefinitionCleanupListener(), this)

@@ -12,9 +12,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Container;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Item;
-import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -22,7 +20,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.ItemSpawnEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.*;
-import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
@@ -45,7 +42,6 @@ import com.sneakyitems.api.SneakyItemsHooks;
 import com.sneakyutils.util.io.AtomicFiles;
 import com.sneakyitems.util.compat.CompatBasics;
 import com.sneakyitems.util.performance.PerformanceDiagnostics;
-import com.sneakyitems.events.SneakyItemsLoadedEvent;
 import com.sneakyitems.util.magicitems.MagicItemBehaviors.ExpirationResult;
 import com.sneakyitems.util.magicitems.MagicItemData.MagicItemAttribute;
 
@@ -71,15 +67,6 @@ public class MagicItemUpdater {
 
     // Active updating of items on login/inventory open
     public static class PersistentDataUpdater implements Listener {
-
-        @EventHandler(ignoreCancelled = true)
-        public void onSneakyItemsLoaded(SneakyItemsLoadedEvent event) {
-            if (!SneakyItemsPlatform.enableUpdateItemData())
-                return;
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                joinOrLoadCharacter(player);
-            }
-        }
 
         @EventHandler(ignoreCancelled = true)
         public void onJoin(PlayerJoinEvent event) {
@@ -118,61 +105,11 @@ public class MagicItemUpdater {
         }
     }
 
+    /**
+     * World items that appear one at a time. Bulk re-checks (entity loads, reloads, definition
+     * changes) are queued by {@code ItemRecheckService} instead.
+     */
     public static class ChunkMagicItemListener implements Listener {
-
-        @EventHandler(ignoreCancelled = true)
-        public void onSneakyItemsLoaded(SneakyItemsLoadedEvent event) {
-            if (!shouldProcessItems())
-                return;
-
-            final ArrayDeque<Chunk> chunks = new ArrayDeque<>();
-            for (World world : Bukkit.getWorlds()) {
-                Collections.addAll(chunks, world.getLoadedChunks());
-            }
-
-            if (chunks.isEmpty())
-                return;
-
-            final int chunksPerTick = 5;
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    long t = PerformanceDiagnostics.start();
-                    try {
-                        int processed = 0;
-                        while (processed++ < chunksPerTick && !chunks.isEmpty()) {
-                            Chunk chunk = chunks.poll();
-                            if (chunk == null || !chunk.isLoaded())
-                                continue;
-
-                            for (Entity entity : chunk.getEntities()) {
-                                processGroundEntityIfNeeded(entity);
-                            }
-                        }
-
-                        if (chunks.isEmpty())
-                            cancel();
-                    } finally {
-                        PerformanceDiagnostics.end("task.loaded-chunk-scan", t);
-                    }
-                }
-            }.runTaskTimer(SneakyItemsPlatform.getInstance(), 1L, 1L);
-        }
-
-        @EventHandler(ignoreCancelled = true)
-        public void onChunkLoad(ChunkLoadEvent event) {
-            if (!shouldProcessItems())
-                return;
-
-            long t = PerformanceDiagnostics.start();
-            try {
-                for (Entity entity : event.getChunk().getEntities()) {
-                    processGroundEntityIfNeeded(entity);
-                }
-            } finally {
-                PerformanceDiagnostics.end("event.chunk-load", t);
-            }
-        }
 
         /**
          * Tags then updates magic items that appear in the world (chest spills, explosions, etc.).
@@ -196,17 +133,6 @@ public class MagicItemUpdater {
             }
         }
 
-        private static void processGroundEntityIfNeeded(Entity entity) {
-            if (entity instanceof Item item) {
-                processItemEntityIfNeeded(item);
-            } else if (entity instanceof ItemDisplay itemDisplay) {
-                ItemStack stack = itemDisplay.getItemStack();
-                ItemStack updated = processItemStack(stack, null);
-                if (updated != stack)
-                    itemDisplay.setItemStack(updated);
-            }
-        }
-
         private static void processItemEntityIfNeeded(Item item) {
             ItemStack stack = item.getItemStack();
             ItemStack updated = processItemStack(stack, null);
@@ -227,7 +153,8 @@ public class MagicItemUpdater {
         }
     }
 
-    private static boolean shouldProcessItems() {
+    /** False when neither definition updates nor legacy mappings are active, so there is nothing to do. */
+    public static boolean shouldProcessItems() {
         return SneakyItemsPlatform.enableUpdateItemData() || MagicItemTagging.hasMappings();
     }
 
@@ -627,7 +554,7 @@ public class MagicItemUpdater {
         Iterator<Player> iterator = players.iterator();
         SneakyItemsPlatform.log("Starting online player inventory update (" + players.size() + " players)...");
 
-        Bukkit.getScheduler().runTaskTimer(SneakyItemsPlatform.getInstance(), new Runnable() {
+        new BukkitRunnable() {
             @Override
             public void run() {
                 for (int i = 0; i < batchSize && iterator.hasNext(); i++) {
@@ -644,10 +571,11 @@ public class MagicItemUpdater {
                 }
                 if (!iterator.hasNext()) {
                     SneakyItemsPlatform.log("Finished updating online players.");
-                    Bukkit.getScheduler().cancelTasks(SneakyItemsPlatform.getInstance());
+                    // only this task: cancelTasks(plugin) would also stop the item re-check queue
+                    cancel();
                 }
             }
-        }, 0L, 1L);
+        }.runTaskTimer(SneakyItemsPlatform.getInstance(), 0L, 1L);
     }
 
     private static void updateCharacters() {

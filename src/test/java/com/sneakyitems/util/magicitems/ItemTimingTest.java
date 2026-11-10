@@ -1,8 +1,7 @@
 package com.sneakyitems.util.magicitems;
 
-import java.util.AbstractCollection;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.EnumSet;
 import java.util.List;
 
 import org.bukkit.Material;
@@ -62,11 +61,15 @@ class ItemTimingTest {
 
     @Test
     void aTaggingFailureInAStandaloneItemCallStillEndsItsSection() {
-        // A mapping collection that fails while tagging iterates it: the call has no enclosing section to unwind it.
-        MagicItemTagging.register(this, new AbstractCollection<>() {
-            @Override public Iterator<MagicItemTagging.TagMapping> iterator() { throw new IllegalStateException("broken mapping"); }
-            @Override public int size() { return 1; }
-        });
+        // A mapping that fails while tagging compares it: the call has no enclosing section to unwind it.
+        MagicItemData broken = new MagicItemData() {
+            @Override
+            public boolean matches(MagicItemData data, EnumSet<MagicItemData.MagicItemAttribute> additionalIgnored) {
+                throw new IllegalStateException("broken mapping");
+            }
+        };
+        broken.setAttribute(MagicItemData.MagicItemAttribute.TYPE, Material.PAPER);
+        MagicItemTagging.register(this, List.of(new MagicItemTagging.TagMapping("broken", broken, null)));
         var stack = new ItemStack(Material.PAPER);
         assertThrows(IllegalStateException.class, () -> MagicItemUpdater.processItemStack(stack, null));
         assertTrue(recording.ended.contains("item.tag"), "item.tag ended on the exception path");

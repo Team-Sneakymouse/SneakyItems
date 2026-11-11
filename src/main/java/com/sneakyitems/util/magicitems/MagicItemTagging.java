@@ -31,6 +31,13 @@ public final class MagicItemTagging {
 	/** Rebuilt whenever the registry changes; read without locking. */
 	private static volatile LegacyTagIndex index = LegacyTagIndex.EMPTY;
 
+	private static final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
+
+	/** Changes to legacy mappings require a full legacy-aware recheck, not definition-only work. */
+	public static long revision() {
+		return revision.get();
+	}
+
 	/** Stack-side ignores that stop the index from narrowing (the pattern value is no longer compared). */
 	private static final EnumSet<MagicItemAttribute> INDEX_ATTRIBUTES = EnumSet.of(
 			MagicItemAttribute.TYPE, MagicItemAttribute.CUSTOM_MODEL_DATA, MagicItemAttribute.ITEM_MODEL);
@@ -57,6 +64,7 @@ public final class MagicItemTagging {
 		for (Collection<TagMapping> mappings : REGISTRY.values())
 			all.addAll(mappings);
 		index = all.isEmpty() ? LegacyTagIndex.EMPTY : new LegacyTagIndex(all);
+		revision.incrementAndGet();
 	}
 
 	public static boolean hasMappings() {

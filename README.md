@@ -35,9 +35,15 @@ need to trigger it. The work goes through one queue, drained a few entries per t
 - **Entities load** (`EntitiesLoadEvent`): their item entities and item displays are queued.
 - **Definitions change** (any register/clear, for example `/ms reload`): once no change has arrived for
   `definition-settle-ticks`, the definition versions are compared with the previous settle. Only stacks
-  tagged with a changed name are rebuilt (untagged or unknown-tag stacks are still checked when legacy
-  mappings exist). An unchanged reload queues nothing.
-- **`/sneakyitems reload`** queues everything.
+  tagged with a changed name are rebuilt. The first full startup re-check includes legacy matching;
+  subsequent definition-only re-checks skip it, including inside rebuilt container items. An unchanged
+  definition reload queues nothing.
+- **Legacy mappings change** (registration/replacement/removal): queue a full legacy-aware re-check.
+- **`/sneakyitems reload`** queues everything, including legacy matching.
+
+Coalesced requests retain legacy matching if **any** request requires it. Normal entity loads, item
+spawns, joins, character loads, inventory opens and explicit player refreshes retain legacy matching;
+this optimization never disables the mapping registry globally.
 
 The queue doesn't drain while definitions are still changing, or before the server starts ticking, so
 entities loaded at boot wait until all plugins have registered their items. Item spawns, joins, character

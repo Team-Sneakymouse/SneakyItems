@@ -37,6 +37,8 @@ open class ItemRecheckService(
     private val entities = RecheckQueue<UUID>()
     private val players = RecheckQueue<UUID>()
     private var task: BukkitTask? = null
+    private var firstDefinitionRecheck = true
+    private var legacyRevision = MagicItemTagging.revision()
 
     var entitiesPerTick = 10
     var playersPerTick = 1
@@ -73,17 +75,24 @@ open class ItemRecheckService(
     }
 
     /** Queues every loaded item entity and item display, and every online player. */
-    fun queueAllLoaded(filter: RecheckFilter) {
+    @JvmOverloads
+    fun queueAllLoaded(filter: RecheckFilter, includeLegacy: Boolean = true) {
         if (!MagicItemUpdater.shouldProcessItems()) return
+        if (filter == RecheckFilter.All && includeLegacy) firstDefinitionRecheck = false
         for (world in Bukkit.getWorlds()) {
             for (entity in world.getEntitiesByClasses(Item::class.java, ItemDisplay::class.java)) {
-                entities.add(entity.uniqueId, filter)
+                entities.add(entity.uniqueId, filter, includeLegacy)
             }
         }
-        for (player in Bukkit.getOnlinePlayers()) players.add(player.uniqueId, RecheckFilter.All)
+        for (player in Bukkit.getOnlinePlayers()) players.add(player.uniqueId, RecheckFilter.All, includeLegacy)
     }
 
     internal fun tick() {
+        val revision = MagicItemTagging.revision()
+        if (revision != legacyRevision) {
+            legacyRevision = revision
+            queueAllLoaded(RecheckFilter.All)
+        }
         if (tracker.tick()) settle()
         if (tracker.pending) return
         if (entities.isEmpty() && players.isEmpty()) return
@@ -92,19 +101,19 @@ open class ItemRecheckService(
         val t = PerformanceDiagnostics.start()
         try {
             repeat(playersPerTick) {
-                val (id, _) = players.poll() ?: return@repeat
+                val (id, _, includeLegacy) = players.poll() ?: return@repeat
                 val player = Bukkit.getPlayer(id) ?: return@repeat
-                MagicItemUpdater.processPlayerInventories(player)
+                MagicItemUpdater.processPlayerInventories(player, includeLegacy)
                 PerformanceDiagnostics.count("recheck.players")
             }
             repeat(entitiesPerTick) {
-                val (id, filter) = entities.poll() ?: return@repeat
+                val (id, filter, includeLegacy) = entities.poll() ?: return@repeat
                 val entity = Bukkit.getEntity(id)
                 if (entity == null || !entity.isValid) {
                     PerformanceDiagnostics.count("recheck.entities-gone")
                     return@repeat
                 }
-                recheckEntity(entity, filter)
+                recheckEntity(entity, filter, includeLegacy)
             }
         } finally {
             PerformanceDiagnostics.end("task.recheck", t)
@@ -118,10 +127,12 @@ open class ItemRecheckService(
         if (changed.isEmpty()) return
         plugin.logger.info("${changed.size} magic item definition(s) changed; queueing item re-check.")
         Bukkit.getPluginManager().callEvent(SneakyItemsDefinitionsChangedEvent(changed))
-        queueAllLoaded(RecheckFilter.Names(changed))
+        // Startup must migrate legacy stacks even when registration coalesces with the loaded event.
+        queueAllLoaded(RecheckFilter.Names(changed), firstDefinitionRecheck)
+        firstDefinitionRecheck = false
     }
 
-    private fun recheckEntity(entity: Entity, filter: RecheckFilter) {
+    private fun recheckEntity(entity: Entity, filter: RecheckFilter, includeLegacy: Boolean) {
         val stack = when (entity) {
             is Item -> entity.itemStack
             is ItemDisplay -> entity.itemStack
@@ -132,7 +143,7 @@ open class ItemRecheckService(
             return
         }
         PerformanceDiagnostics.count("recheck.entities")
-        val updated = MagicItemUpdater.processItemStack(stack, null) ?: return
+        val updated = MagicItemUpdater.processItemStack(stack, null, includeLegacy) ?: return
         if (updated === stack) return
         when (entity) {
             is Item -> entity.itemStack = updated

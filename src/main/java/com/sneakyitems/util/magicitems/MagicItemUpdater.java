@@ -169,22 +169,30 @@ public class MagicItemUpdater {
 
     /** Tag (if mappings exist) then update a player's inventories. Used by ItemTagSpell cast. */
     public static void processPlayerInventories(Player player) {
+        processPlayerInventories(player, true);
+    }
+
+    public static void processPlayerInventories(Player player, boolean includeLegacy) {
         if (player == null)
             return;
         long t = PerformanceDiagnostics.start();
         try {
-            processInventory(player.getInventory(), player);
+            processInventory(player.getInventory(), player, includeLegacy);
             PlayerInventory inv = player.getInventory();
             ItemStack[] armor = inv.getArmorContents();
-            processItemStacks(armor, player);
+            processItemStacks(armor, player, includeLegacy);
             inv.setArmorContents(armor);
-            processInventory(player.getEnderChest(), player);
+            processInventory(player.getEnderChest(), player, includeLegacy);
         } finally {
             PerformanceDiagnostics.end("player.process-inventories", t);
         }
     }
 
     public static void processInventory(Inventory inv, @Nullable Player player) {
+        processInventory(inv, player, true);
+    }
+
+    public static void processInventory(Inventory inv, @Nullable Player player, boolean includeLegacy) {
         if (inv == null || SneakyItemsHooks.isMenuInventory(inv) || isBagOfHoldingGui(inv))
             return;
         sampleLevels();
@@ -195,7 +203,7 @@ public class MagicItemUpdater {
             PerformanceDiagnostics.end("inventory.read-contents", phase);
             PerformanceDiagnostics.count("inventory.slots", contents.length);
             long items = PerformanceDiagnostics.start();
-            processItemStacks(contents, player);
+            processItemStacks(contents, player, includeLegacy);
             PerformanceDiagnostics.end("inventory.items", items);
             long write = PerformanceDiagnostics.start();
             inv.setContents(contents);
@@ -215,13 +223,17 @@ public class MagicItemUpdater {
     }
 
     public static void processItemStacks(ItemStack[] items, @Nullable Player player) {
+        processItemStacks(items, player, true);
+    }
+
+    public static void processItemStacks(ItemStack[] items, @Nullable Player player, boolean includeLegacy) {
         if (items == null)
             return;
         for (int i = 0; i < items.length; i++) {
             ItemStack itemStack = items[i];
             if (itemStack == null)
                 continue;
-            items[i] = processItemStack(itemStack, player);
+            items[i] = processItemStack(itemStack, player, includeLegacy);
         }
     }
 
@@ -230,6 +242,11 @@ public class MagicItemUpdater {
      * when updates are enabled or a tag was just applied.
      */
     public static ItemStack processItemStack(ItemStack itemStack, @Nullable Player player) {
+        return processItemStack(itemStack, player, true);
+    }
+
+    /** Per-call policy, propagated through rebuilt containers; never changes global mapping state. */
+    public static ItemStack processItemStack(ItemStack itemStack, @Nullable Player player, boolean includeLegacy) {
         if (itemStack == null)
             return null;
 
@@ -241,7 +258,8 @@ public class MagicItemUpdater {
         long tag = timed ? PerformanceDiagnostics.start() : 0;
         MagicItemTagging.TagResult tagResult;
         try {
-            tagResult = MagicItemTagging.applyTagIfNeeded(itemStack);
+            tagResult = includeLegacy ? MagicItemTagging.applyTagIfNeeded(itemStack)
+                    : MagicItemTagging.TagResult.unchanged(itemStack);
         } finally {
             PerformanceDiagnostics.end("item.tag", tag);
         }
@@ -251,7 +269,7 @@ public class MagicItemUpdater {
         if (tagged || SneakyItemsPlatform.enableUpdateItemData()) {
             long update = timed ? PerformanceDiagnostics.start() : 0;
             try {
-                ItemStack updated = updateMagicItemItemStackIfNeeded(stack);
+                ItemStack updated = updateMagicItemItemStackIfNeeded(stack, includeLegacy);
                 if (updated != stack)
                     stack = updated;
             } finally {
@@ -289,7 +307,7 @@ public class MagicItemUpdater {
      * If the stack is a magic item whose stored data differs from the current definition, returns an updated
      * stack from {@link #updateItem}; otherwise returns the same reference.
      */
-    private static ItemStack updateMagicItemItemStackIfNeeded(ItemStack itemStack) {
+    private static ItemStack updateMagicItemItemStackIfNeeded(ItemStack itemStack, boolean includeLegacy) {
         if (itemStack == null)
             return null;
 
@@ -352,7 +370,7 @@ public class MagicItemUpdater {
 
         long t = containerDepth == 0 ? PerformanceDiagnostics.start() : 0;
         try {
-            ItemStack rebuilt = updateItem(itemStack, magicItem);
+            ItemStack rebuilt = updateItem(itemStack, magicItem, includeLegacy);
             if (rebuilt != itemStack)
                 PerformanceDiagnostics.count("items.rebuilt");
             return rebuilt;
@@ -362,6 +380,10 @@ public class MagicItemUpdater {
     }
 
     public static ItemStack updateItem(ItemStack itemStack, MagicItem magicItem) {
+        return updateItem(itemStack, magicItem, true);
+    }
+
+    private static ItemStack updateItem(ItemStack itemStack, MagicItem magicItem, boolean includeLegacy) {
         Material material = itemStack.getType();
 
         if (material.equals(Material.WRITTEN_BOOK)) {
@@ -439,7 +461,7 @@ public class MagicItemUpdater {
             long t = containerDepth == 0 ? PerformanceDiagnostics.start() : 0;
             containerDepth++;
             try {
-                processItemStacks(contents, null);
+                processItemStacks(contents, null, includeLegacy);
             } finally {
                 containerDepth--;
                 PerformanceDiagnostics.end("item.rebuild.container-contents", t);

@@ -49,9 +49,8 @@ PDC keys stay `magicspells:soulbound_owner` / `magicspells:expires_at`. Creative
 
 | Task | Command |
 |------|---------|
-| Build + unit tests | `./gradlew check` (includes both preflight checks) |
+| Build + unit tests | `./gradlew check` (includes `publishPreflight`) |
 | Publish preflight only | `./gradlew publishPreflight` or `bash scripts/publish-preflight.sh` |
-| Agent-instruction preflight | `./gradlew templatePolicyPreflight` (also included in `check`) |
 | Unit tests only | `./gradlew test` |
 | Local Paper server | `./gradlew runServer` (stages `paper-plugin.yml` server deps from matching `compileOnly` jars) |
 | Preview staged deps | `./gradlew resolveRunServerPlugins` |
@@ -61,13 +60,13 @@ Builds require a **git checkout** with at least one commit (version is derived f
 
 ## Architecture (keep plugins testable)
 
-Put code where it can be tested without a live server when possible:
+Put code where it can be tested without a live server when possible. Add a package when the plugin needs it:
 
 ```text
 src/main/kotlin/<package>/
   SneakyItems.kt       # Bootstrap only: config, register commands/listeners
+  commands/            # Parse args, call services, send messages
   service/             # Rules, calculations, domain logic — no org.bukkit imports
-  command/             # Parse args, call services, send messages
   listener/            # Events → services
   util/                # Plugin-specific pure helpers (do not copy TextUtility here)
 src/test/kotlin/<package>/   # Mirror packages; *Test.kt next to the unit under test
@@ -80,9 +79,8 @@ Guidelines:
 
 - **Business logic** belongs in `service/` or `util/`, not in listeners or command `execute` bodies.
 - **Commands and listeners** are thin adapters over services.
-- Avoid new uses of **`SneakyItems.instance`**; prefer constructor parameters (`JavaPlugin`, services) so tests stay simple.
+- Avoid global plugin singletons; prefer constructor parameters (`JavaPlugin`, services) so tests stay simple.
 - Classes loaded by MockBukkit (plugin, commands) must be **`open`** in Kotlin.
-- `CommandBase` sets permission to `{identifier}.command.{name}` using `SneakyItems.IDENTIFIER`.
 
 ## Testing
 
@@ -92,8 +90,8 @@ Run `./gradlew check` before finishing. Do not rely on `./gradlew runServer` as 
 
 | Kind of code | Approach |
 |--------------|----------|
-| `util/`, `service/` (no Bukkit) | Plain **JUnit 5** (see `TextUtilityTest` — uses SneakyUtils) |
-| Permissions, command wiring, enable/disable | **MockBukkit** (`mockbukkit-v26.2`, see `SneakyItemsTest`, `CommandBaseTest`) |
+| `util/`, `service/` (no Bukkit) | Plain **JUnit 5** (no `MockBukkit` import) |
+| Permissions, command wiring, enable/disable | **MockBukkit** (`mockbukkit-v26.2`) |
 | Full gameplay / integration | Manual **`runServer`** smoke tests |
 
 MockBukkit lifecycle in every MockBukkit test class:

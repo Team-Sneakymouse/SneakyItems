@@ -232,7 +232,10 @@ open class MagicItemClickListener(
     ): MagicItemClickEvent? {
         if (item == null || item.isEmpty) return null
         val key = MagicItemBehaviorKeys.readMagicItemName(item) ?: return null
-        val event = MagicItemClickEvent(player, key, item, hand, click, trigger, block, face, entity, interact, alreadyDenied)
+        val point = interact?.interactionPoint
+        val event = MagicItemClickEvent(
+            player, key, item, hand, click, trigger, block, face, entity, point, interact, alreadyDenied,
+        )
         plugin.server.pluginManager.callEvent(event)
         return event
     }

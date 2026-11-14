@@ -1,5 +1,6 @@
 package com.sneakyitems.events;
 
+import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
@@ -30,6 +31,8 @@ import org.jetbrains.annotations.Nullable;
  *       ({@link Trigger#ENTITY}) fire at once and can be cancelled. Clicks only known from the arm swing
  *       ({@link Trigger#AIR}, or {@link Trigger#ARM_SWING} with {@code click-events.cast-on-animate}) fire a tick
  *       later, so drops, container/door clicks and the swing of a block/entity hit can be told apart.</li>
+ *   <li><b>Hit point</b>: {@link #getInteractionPoint()} is the exact client hit on a block (from
+ *       {@link PlayerInteractEvent#getInteractionPoint()}) when that is available; otherwise null.</li>
  * </ul>
  *
  * <p>Cancelling cancels the vanilla action where it is still pending (every trigger except the late
@@ -62,10 +65,45 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 	private final Block clickedBlock;
 	private final BlockFace blockFace;
 	private final Entity clickedEntity;
+	private final Location interactionPoint;
 	private final PlayerInteractEvent interact;
 	private final boolean alreadyDenied;
 	private boolean cancelled;
 
+	/**
+	 * @param interactionPoint exact block hit when known; use {@code null} when the client did not send one
+	 */
+	public MagicItemClickEvent(
+			@NotNull Player player,
+			@NotNull String itemKey,
+			@NotNull ItemStack item,
+			@NotNull EquipmentSlot hand,
+			@NotNull Click click,
+			@NotNull Trigger trigger,
+			@Nullable Block clickedBlock,
+			@Nullable BlockFace blockFace,
+			@Nullable Entity clickedEntity,
+			@Nullable Location interactionPoint,
+			@Nullable PlayerInteractEvent interact,
+			boolean alreadyDenied) {
+		super(player);
+		this.itemKey = itemKey;
+		this.item = item;
+		this.hand = hand;
+		this.click = click;
+		this.trigger = trigger;
+		this.clickedBlock = clickedBlock;
+		this.blockFace = blockFace;
+		this.clickedEntity = clickedEntity;
+		this.interactionPoint = interactionPoint;
+		this.interact = interact;
+		this.alreadyDenied = alreadyDenied;
+	}
+
+	/**
+	 * Convenience for callers without an explicit hit point: uses
+	 * {@link PlayerInteractEvent#getInteractionPoint()} when {@code interact} is set.
+	 */
 	public MagicItemClickEvent(
 			@NotNull Player player,
 			@NotNull String itemKey,
@@ -78,17 +116,9 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 			@Nullable Entity clickedEntity,
 			@Nullable PlayerInteractEvent interact,
 			boolean alreadyDenied) {
-		super(player);
-		this.itemKey = itemKey;
-		this.item = item;
-		this.hand = hand;
-		this.click = click;
-		this.trigger = trigger;
-		this.clickedBlock = clickedBlock;
-		this.blockFace = blockFace;
-		this.clickedEntity = clickedEntity;
-		this.interact = interact;
-		this.alreadyDenied = alreadyDenied;
+		this(
+				player, itemKey, item, hand, click, trigger, clickedBlock, blockFace, clickedEntity,
+				interact != null ? interact.getInteractionPoint() : null, interact, alreadyDenied);
 	}
 
 	/** Internal name of the magic item (its stamped {@code magicitem} PDC value). */
@@ -140,6 +170,16 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 	@Nullable
 	public Entity getClickedEntity() {
 		return clickedEntity;
+	}
+
+	/**
+	 * Exact hit location on the clicked block when the client sent one (typically
+	 * {@link PlayerInteractEvent#getInteractionPoint()} for {@link Trigger#BLOCK} / {@link Trigger#AIR} interacts
+	 * fired at once). Null for late left clicks, entity triggers, arm swings, or when the vanilla event had no point.
+	 */
+	@Nullable
+	public Location getInteractionPoint() {
+		return interactionPoint;
 	}
 
 	/**

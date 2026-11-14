@@ -299,6 +299,20 @@ class MagicItemClickListenerTest {
         assertEquals(Result.DEFAULT, event.useItemInHand())
     }
 
+    @Test
+    fun `interaction point is taken from the vanilla interact when present`() {
+        player.inventory.setItemInMainHand(magic("switch"))
+        val block = player.location.block.apply { type = Material.STONE }
+        val item = player.inventory.itemInMainHand
+        val vanilla = PlayerInteractEvent(
+            player, Action.RIGHT_CLICK_BLOCK, item, block, BlockFace.NORTH, EquipmentSlot.HAND,
+        )
+        // MockBukkit may leave interactionPoint null; assert the event mirrors whatever the interact has.
+        server.pluginManager.callEvent(vanilla)
+        val e = fired.single()
+        assertEquals(vanilla.interactionPoint, e.interactionPoint)
+    }
+
     // --- swing event ---
 
     @Test

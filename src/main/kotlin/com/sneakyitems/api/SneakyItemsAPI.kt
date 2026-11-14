@@ -6,6 +6,8 @@ import com.sneakyitems.util.magicitems.MagicItems
 import com.sneakyitems.util.magicitems.MagicItemUpdater
 import org.bukkit.configuration.ConfigurationSection
 import com.sneakyitems.util.magicitems.MagicItemBehaviorKeys
+import com.sneakyitems.util.magicitems.MagicItemTagging
+import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
@@ -40,8 +42,35 @@ object SneakyItemsAPI {
       template: ItemStack,
   ): MagicItem? = MagicItemRegistry.registerFromStack(owner, pdcNamespace, internalName, template)
 
+  /** Drops [owner]'s definitions and its legacy mappings ([registerLegacyKey], [registerLegacyPattern]). */
   @JvmStatic
   fun clearOwner(owner: Plugin) = MagicItemRegistry.clearOwner(owner)
+
+  /**
+   * Migrates stacks made before [internalName] was a magic item: any stack carrying [key] (whatever its value) gets
+   * stamped as [internalName] the next time the updater sees it (inventories on join/open, item entities on load).
+   * The rebuild keeps the stack's other PDC keys, so per-copy data stays. Use it for items with your own PDC
+   * identity; for items known only by their look, use [registerLegacyPattern]. Cleared by [clearOwner].
+   */
+  @JvmStatic
+  fun registerLegacyKey(owner: Plugin, key: NamespacedKey, internalName: String) =
+      MagicItemTagging.addKey(MagicItemRegistry.legacyOwner(owner), key, internalName)
+
+  /**
+   * Migrates stacks known only by their look: any stack matching [pattern] (a magic-item data string, for example
+   * `paper{"item-model":"lom:coach_whistle"}`; only the attributes it names are compared, amount is ignored) gets
+   * stamped as [internalName]. Same mechanism as `legacy-item-tag-mappings.yml`, shipped by the owning plugin.
+   * Returns false when [pattern] doesn't parse. Cleared by [clearOwner].
+   */
+  @JvmStatic
+  fun registerLegacyPattern(owner: Plugin, internalName: String, pattern: String): Boolean {
+    val data = MagicItems.getMagicItemDataFromString(pattern) ?: return false
+    data.ignoredAttributes.add(MagicItemData.MagicItemAttribute.AMOUNT)
+    data.ignoredAttributes.add(MagicItemData.MagicItemAttribute.MAGIC_ITEM_NAME)
+    val item = MagicItems.getMagicItemFromData(data) ?: return false
+    MagicItemTagging.add(MagicItemRegistry.legacyOwner(owner), MagicItemTagging.TagMapping(internalName, data, item))
+    return true
+  }
 
   @JvmStatic
   fun getByInternalName(name: String): MagicItem? = MagicItems.getMagicItemByInternalName(name)

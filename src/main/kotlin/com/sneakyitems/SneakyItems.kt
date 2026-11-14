@@ -5,6 +5,7 @@ import com.sneakyitems.events.SneakyItemsLoadedEvent
 import com.sneakyitems.api.MagicItemRegistry
 import com.sneakyitems.integration.Probe
 import com.sneakyitems.listener.ItemRecheckService
+import com.sneakyitems.listener.MagicItemClickListener
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.LegacyItemTagMappings
@@ -37,6 +38,9 @@ open class SneakyItems : JavaPlugin() {
     /** Queued, rate-limited re-checks of loaded item entities, item displays and online players. */
     val recheck = ItemRecheckService(this, MagicItemRegistry.changes)
 
+    /** Fires `MagicItemClickEvent`; `click-events.*` config is applied on reload. */
+    val clicks = MagicItemClickListener(this)
+
     override fun onLoad() {
         instance = this
         SneakyItemsPlatform.init(this)
@@ -68,6 +72,7 @@ open class SneakyItems : JavaPlugin() {
             LegacyItemTagMappings.clear(this)
         }
         registerRuntimeListeners()
+        clicks.castOnAnimate = config.getBoolean("click-events.cast-on-animate", false)
         recheck.entitiesPerTick = config.getInt("item-recheck.entities-per-tick", 10).coerceAtLeast(1)
         recheck.playersPerTick = config.getInt("item-recheck.players-per-tick", 1).coerceAtLeast(1)
         MagicItemRegistry.changes.settleTicks = config.getInt("item-recheck.definition-settle-ticks", 20).coerceAtLeast(1)
@@ -108,6 +113,7 @@ open class SneakyItems : JavaPlugin() {
         pm.registerEvents(MagicItemUpdater.CharacterPersistentDataUpdater(), this)
         pm.registerEvents(MagicItemBehaviorReceiveListener(), this)
         pm.registerEvents(OwnerDefinitionCleanupListener(), this)
+        pm.registerEvents(clicks, this)
         listenersRegistered = true
     }
 }

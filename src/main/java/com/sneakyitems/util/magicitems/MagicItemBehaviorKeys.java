@@ -1,5 +1,6 @@
 package com.sneakyitems.util.magicitems;
 
+import io.papermc.paper.persistence.PersistentDataContainerView;
 import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -52,6 +53,21 @@ public final class MagicItemBehaviorKeys {
 
     public static NamespacedKey key(String local) {
         return new NamespacedKey(pdcNamespace, local);
+    }
+
+    private static final NamespacedKey LEGACY_MAGIC_ITEM = new NamespacedKey("magicspells", "magicitem");
+
+    /**
+     * Same lookup as {@link #getMagicItemName}, but reads the stack's PDC view instead of cloning
+     * its meta. Use it on hot paths (click events, inventory scans).
+     */
+    public static String readMagicItemName(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return null;
+        PersistentDataContainerView container = stack.getPersistentDataContainer();
+        String fromActive = container.get(magicItem(), PersistentDataType.STRING);
+        if (fromActive != null) return fromActive;
+        if (!"magicspells".equals(pdcNamespace)) return container.get(LEGACY_MAGIC_ITEM, PersistentDataType.STRING);
+        return null;
     }
 
     public static String getMagicItemName(ItemStack stack) {

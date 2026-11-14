@@ -18,6 +18,8 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `com.sneakyitems.events.ItemExpireEvent` | Fired before inventory removal of an expired stack |
 | `com.sneakyitems.events.SneakyItemsLoadedEvent` | Fired after SneakyItems reload (MagicSpells can refresh stacks) |
 | `com.sneakyitems.events.SneakyItemsDefinitionsChangedEvent` | Fired once a burst of registrations settles, with the added/changed/removed names |
+| `com.sneakyitems.events.MagicItemClickEvent` | Left/right click with a magic item; see [Magic item clicks](#magic-item-clicks) |
+| `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 
@@ -51,6 +53,29 @@ loads and inventory opens are still handled right away.
 
 Legacy tagging skips stacks already tagged with a registered name, and only compares a stack against
 mappings with the same item type and model (custom model data or item model).
+
+### Magic item clicks
+
+`MagicItemClickEvent` fires when a player clicks with a stack whose `magicitem` PDC key is set. Listen to it instead of
+`PlayerInteractEvent` so every plugin handles clicks the same way. It carries the item's internal name (`itemKey`),
+the live stack, the hand, `click` (`LEFT`/`RIGHT`) and `trigger` (`AIR`, `BLOCK`, `ENTITY`, `ARM_SWING`) with the
+clicked block/face or entity.
+
+The timing is ported from MagicSpells' `CastListener` (left) and `RightClickListener` (right):
+
+- **Right:** fired at once, per hand holding a magic item, for block/air and entity interacts.
+- **Left:** main hand only, fired one tick after the click. A left click within 150 ms of dropping an item, or of a
+  right-click on a container/door/button/bed/etc. or with a block item, is ignored (those swing the arm too).
+  - `click-events.cast-on-animate: false` (default): left-click interacts on air/blocks (a tick late), and melee hits
+    (at once; a hit also suppresses its own left-click interact).
+  - `click-events.cast-on-animate: true`: the main-hand arm-swing animation, only with no container open.
+
+Cancelling the event cancels the vanilla action when that is still pending: right-click interacts and melee hits. A
+left click fired a tick late was already handled by vanilla; cancelling it only marks it as consumed for listeners with
+`ignoreCancelled = true`.
+
+`SneakyItemsAPI` lookups take the internal name. "Inventory" (`inInventory`, `findSlots`, `count`) means the main
+inventory plus the offhand; armor slots (`wearing`, optionally one slot) and the cursor don't count.
 
 ## Diagnostics
 

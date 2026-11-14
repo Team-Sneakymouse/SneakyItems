@@ -11,6 +11,12 @@ item-recheck:
   # Ticks with no new registrations before a burst of definition changes counts as done.
   definition-settle-ticks: 20
 
+# MagicItemClickEvent (left/right clicks with a magic item, for other plugins to listen to).
+click-events:
+  # Same as MagicSpells' cast-on-animate. true: a left click is the main-hand arm swing (no target info).
+  # false: a left click is a left-click interact on air/a block, or a melee hit.
+  cast-on-animate: false
+
 # Hide tooltips on newly parsed definitions when true.
 hide-magic-item-tooltips: false
 

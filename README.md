@@ -79,7 +79,8 @@ mappings and the `legacy-tags on|off` switch are separate and unaffected.
 `MagicItemClickEvent` fires when a player clicks with a stack whose `magicitem` PDC key is set. Listen to it instead of
 `PlayerInteractEvent` so every plugin handles clicks the same way. It carries the item's internal name (`itemKey`),
 the live stack, the hand, `click` (`LEFT`/`RIGHT`) and `trigger` (`AIR`, `BLOCK`, `ENTITY`, `ARM_SWING`) with the
-clicked block/face or entity.
+clicked block/face or entity, and `getInteractionPoint()` when the client sent an exact block hit (same as
+`PlayerInteractEvent.getInteractionPoint()`).
 
 Listeners choose their own priority on the event. SneakyItems fires it while handling the vanilla event at `NORMAL`,
 after protection plugins (`LOWEST`/`LOW`). `isAlreadyDenied()` says whether one of them already denied the action: item

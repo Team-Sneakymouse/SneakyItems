@@ -13,8 +13,9 @@ item-recheck:
 
 # MagicItemClickEvent (left/right clicks with a magic item, for other plugins to listen to).
 click-events:
-  # Same as MagicSpells' cast-on-animate. true: a left click is the main-hand arm swing (no target info).
-  # false: a left click is a left-click interact on air/a block, or a melee hit.
+  # Same as MagicSpells' cast-on-animate, for left clicks in the air. true: the main-hand arm swing counts as a left
+  # click (also catches swings the server sends no left-click-air for). false: only left-click-air interacts count.
+  # Block hits and entity attacks are reported either way.
   cast-on-animate: false
 
 # Hide tooltips on newly parsed definitions when true.

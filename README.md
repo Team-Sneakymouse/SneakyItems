@@ -19,6 +19,7 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `com.sneakyitems.events.SneakyItemsLoadedEvent` | Fired after SneakyItems reload (MagicSpells can refresh stacks) |
 | `com.sneakyitems.events.SneakyItemsDefinitionsChangedEvent` | Fired once a burst of registrations settles, with the added/changed/removed names |
 | `com.sneakyitems.events.MagicItemClickEvent` | Left/right click with a magic item; see [Magic item clicks](#magic-item-clicks) |
+| `com.sneakyitems.events.MagicItemSwingEvent` | Raw main-hand arm swing with a magic item |
 | `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
@@ -61,18 +62,30 @@ mappings with the same item type and model (custom model data or item model).
 the live stack, the hand, `click` (`LEFT`/`RIGHT`) and `trigger` (`AIR`, `BLOCK`, `ENTITY`, `ARM_SWING`) with the
 clicked block/face or entity.
 
-The timing is ported from MagicSpells' `CastListener` (left) and `RightClickListener` (right):
+Listeners choose their own priority on the event. SneakyItems fires it while handling the vanilla event at `NORMAL`,
+after protection plugins (`LOWEST`/`LOW`). `isAlreadyDenied()` says whether one of them already denied the action: item
+use set to `DENY` for interacts (an air click arriving "cancelled" doesn't count), or the entity event cancelled.
 
-- **Right:** fired at once, per hand holding a magic item, for block/air and entity interacts.
-- **Left:** main hand only, fired one tick after the click. A left click within 150 ms of dropping an item, or of a
-  right-click on a container/door/button/bed/etc. or with a block item, is ignored (those swing the arm too).
-  - `click-events.cast-on-animate: false` (default): left-click interacts on air/blocks (a tick late), and melee hits
-    (at once; a hit also suppresses its own left-click interact).
-  - `click-events.cast-on-animate: true`: the main-hand arm-swing animation, only with no container open.
+The timing builds on MagicSpells' `CastListener` (left) and `RightClickListener` (right):
 
-Cancelling the event cancels the vanilla action when that is still pending: right-click interacts and melee hits. A
-left click fired a tick late was already handled by vanilla; cancelling it only marks it as consumed for listeners with
-`ignoreCancelled = true`.
+- **Right:** fired at once, per hand holding a magic item, for block/air and entity interacts. One physical click is
+  reported once: the interact-at/interact pair Paper fires for an entity, and the client's air/block click right after
+  an entity click, are the same click (and the follow-up is cancelled too when the entity click was).
+- **Left:** main hand only.
+  - Block hits (`BLOCK`) and attacks on any entity (`ENTITY`, from Paper's `PrePlayerAttackEntityEvent`, so hitboxes
+    and item frames count) fire at once and can be cancelled.
+  - Clicks only known from the arm swing fire a tick later: left-click air (`AIR`, default) or, with
+    `click-events.cast-on-animate: true`, the main-hand arm swing itself (`ARM_SWING`, only with no container open).
+    They're ignored within 150 ms of dropping an item or of a right-click on a container/door/button/bed/etc. or with a
+    block item, and when a block/entity hit happened within a tick (that swing belonged to the hit).
+
+Cancelling the event cancels the vanilla action for every trigger fired at once. A late `AIR`/`ARM_SWING` left click
+was already handled by vanilla; cancelling it only marks it as consumed for listeners with `ignoreCancelled = true`.
+Interact triggers (`hasInteractResults()`) also take `setUseItemInHand` / `setUseInteractedBlock` to deny one side only.
+
+`MagicItemSwingEvent` is the raw alternative: every main-hand arm swing with a magic item, whatever `cast-on-animate`
+says, except the swing of a drop. Fired a tick late and not cancellable. A swing isn't always a left click
+(right-clicking a block swings too), so use it only when "any swing" is what you want.
 
 `SneakyItemsAPI` lookups take the internal name. "Inventory" (`inInventory`, `findSlots`, `count`) means the main
 inventory plus the offhand; armor slots (`wearing`, optionally one slot) and the cursor don't count.

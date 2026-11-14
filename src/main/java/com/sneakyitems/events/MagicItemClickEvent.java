@@ -5,8 +5,10 @@ import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Cancellable;
+import org.bukkit.event.Event;
 import org.bukkit.event.HandlerList;
 import org.bukkit.event.player.PlayerEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
@@ -15,33 +17,36 @@ import org.jetbrains.annotations.Nullable;
 /**
  * A player left- or right-clicked while holding a registered magic item.
  *
- * <p>Fired by SneakyItems so plugins share one click implementation instead of each
- * listening to {@code PlayerInteractEvent} and friends. The timing follows MagicSpells'
- * cast listeners (see the README, "Magic item clicks"):
+ * <p>Fired by SneakyItems so plugins share one click implementation instead of each listening to
+ * {@code PlayerInteractEvent} and friends. Listeners pick their own priority on this event; SneakyItems
+ * fires it while handling the vanilla event at {@code NORMAL}, so protection plugins on {@code LOWEST}/{@code LOW}
+ * have already run (see {@link #isAlreadyDenied()}).
+ *
  * <ul>
- *   <li><b>Right</b>: fired synchronously for each hand that holds a magic item, from block/air
- *       interacts and entity interacts.</li>
- *   <li><b>Left</b>: always the main hand. Fired one tick after the click (so drops and
- *       container/door clicks can suppress it). With {@code click-events.cast-on-animate} the
- *       trigger is the arm-swing animation; otherwise it is a left-click interact, or a melee hit
- *       (synchronous).</li>
+ *   <li><b>Right</b>: at once, for each hand holding a magic item, from block/air and entity interacts. One physical
+ *       click is reported once (an entity click plus the client's follow-up air/block click, or the
+ *       interact-at plus interact pair, count as one).</li>
+ *   <li><b>Left</b>: always the main hand. Block hits ({@link Trigger#BLOCK}) and entity hits
+ *       ({@link Trigger#ENTITY}) fire at once and can be cancelled. Clicks only known from the arm swing
+ *       ({@link Trigger#AIR}, or {@link Trigger#ARM_SWING} with {@code click-events.cast-on-animate}) fire a tick
+ *       later, so drops, container/door clicks and the swing of a block/entity hit can be told apart.</li>
  * </ul>
  *
- * <p>Cancelling cancels the vanilla action where it is still pending: right-click interacts,
- * right-click entity interacts, and melee hits (the damage is cancelled). Left clicks fired a tick
- * later have already been processed by vanilla; cancelling those only marks the click as consumed
- * so later listeners using {@code ignoreCancelled = true} skip it.
+ * <p>Cancelling cancels the vanilla action where it is still pending (every trigger except the late
+ * {@code AIR}/{@code ARM_SWING} left clicks, which only get marked consumed for later listeners using
+ * {@code ignoreCancelled = true}). Interact triggers also offer {@link #setUseItemInHand} and
+ * {@link #setUseInteractedBlock} for finer control. See {@link MagicItemSwingEvent} for raw swings.
  */
 public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 
 	public enum Click { LEFT, RIGHT }
 
 	public enum Trigger {
-		/** Clicked air. */
+		/** Clicked air (left: known from the arm swing, fired a tick late). */
 		AIR,
 		/** Clicked a block; {@link #getClickedBlock()} and {@link #getBlockFace()} are set. */
 		BLOCK,
-		/** Right-clicked or hit an entity; {@link #getClickedEntity()} is set. */
+		/** Right-clicked or attacked an entity (any entity, hitboxes included); {@link #getClickedEntity()} is set. */
 		ENTITY,
 		/** Main-hand arm swing ({@code cast-on-animate}); no target information. */
 		ARM_SWING
@@ -57,6 +62,8 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 	private final Block clickedBlock;
 	private final BlockFace blockFace;
 	private final Entity clickedEntity;
+	private final PlayerInteractEvent interact;
+	private final boolean alreadyDenied;
 	private boolean cancelled;
 
 	public MagicItemClickEvent(
@@ -68,7 +75,9 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 			@NotNull Trigger trigger,
 			@Nullable Block clickedBlock,
 			@Nullable BlockFace blockFace,
-			@Nullable Entity clickedEntity) {
+			@Nullable Entity clickedEntity,
+			@Nullable PlayerInteractEvent interact,
+			boolean alreadyDenied) {
 		super(player);
 		this.itemKey = itemKey;
 		this.item = item;
@@ -78,6 +87,8 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 		this.clickedBlock = clickedBlock;
 		this.blockFace = blockFace;
 		this.clickedEntity = clickedEntity;
+		this.interact = interact;
+		this.alreadyDenied = alreadyDenied;
 	}
 
 	/** Internal name of the magic item (its stamped {@code magicitem} PDC value). */
@@ -129,6 +140,48 @@ public class MagicItemClickEvent extends PlayerEvent implements Cancellable {
 	@Nullable
 	public Entity getClickedEntity() {
 		return clickedEntity;
+	}
+
+	/**
+	 * True when the vanilla action was already denied before this event fired: for interacts, another plugin set
+	 * {@code useItemInHand} to {@code DENY} (an air click arriving "cancelled" does not count); for entity clicks and
+	 * attacks, the vanilla event was already cancelled. Region/protection plugins do this. Always false for the late
+	 * {@code AIR}/{@code ARM_SWING} left clicks.
+	 */
+	public boolean isAlreadyDenied() {
+		return alreadyDenied;
+	}
+
+	/** Whether {@link #setUseItemInHand}/{@link #setUseInteractedBlock} apply (block/air interact triggers fired at once). */
+	public boolean hasInteractResults() {
+		return interact != null;
+	}
+
+	/** The vanilla interact's item-use result, or null when this click did not come from an interact fired at once. */
+	@Nullable
+	public Event.Result getUseItemInHand() {
+		return interact == null ? null : interact.useItemInHand();
+	}
+
+	/** Allow/deny using the item (eating, throwing, placing). Only for {@link #hasInteractResults()} clicks. */
+	public void setUseItemInHand(@NotNull Event.Result result) {
+		requireInteract().setUseItemInHand(result);
+	}
+
+	/** The vanilla interact's clicked-block result, or null when this click did not come from an interact fired at once. */
+	@Nullable
+	public Event.Result getUseInteractedBlock() {
+		return interact == null ? null : interact.useInteractedBlock();
+	}
+
+	/** Allow/deny the clicked block's own use (doors, containers). Only for {@link #hasInteractResults()} clicks. */
+	public void setUseInteractedBlock(@NotNull Event.Result result) {
+		requireInteract().setUseInteractedBlock(result);
+	}
+
+	private PlayerInteractEvent requireInteract() {
+		if (interact == null) throw new IllegalStateException("No interact results for a " + trigger + " " + click + " click");
+		return interact;
 	}
 
 	@Override

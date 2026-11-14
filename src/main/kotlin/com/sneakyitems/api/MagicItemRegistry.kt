@@ -117,6 +117,7 @@ object MagicItemRegistry {
 
     @JvmStatic
     fun clearOwner(owner: Plugin) {
+        com.sneakyitems.util.magicitems.MagicItemTagging.unregisterAll(legacyOwner(owner))
         val names = defsByOwner.remove(owner) ?: return
         namespaceByOwner.remove(owner)
         val map = MagicItems.getMagicItems()
@@ -132,6 +133,12 @@ object MagicItemRegistry {
 
     @JvmStatic
     fun ownerOf(internalName: String): Plugin? = ownersByName[internalName]
+
+    /** Registry key for a plugin's API legacy mappings; kept apart from SneakyItems' own YAML mappings. */
+    data class LegacyOwner(val plugin: String)
+
+    @JvmStatic
+    fun legacyOwner(owner: Plugin): LegacyOwner = LegacyOwner(owner.name)
 
     @JvmStatic
     fun pdcNamespace(owner: Plugin): String? = namespaceByOwner[owner]

@@ -19,8 +19,15 @@ import com.sneakyitems.util.magicitems.MagicItemData.MagicItemAttribute;
 import com.sneakyitems.util.performance.PerformanceDiagnostics;
 
 /**
- * Legacy ItemTag pattern mappings (pre-PDC stacks).
- * Applies the {@code magicitem} PDC name so the updater can rebuild pre-PDC stacks.
+ * Legacy mappings: stamp the {@code magicitem} PDC name on stacks made before they were magic items, so the updater
+ * can rebuild them.
+ *
+ * <ul>
+ *   <li><b>Pattern mappings</b> ({@link TagMapping}): the stack matches item data (type, model, name...). From
+ *       {@code legacy-item-tag-mappings.yml}, or registered by an owning plugin.</li>
+ *   <li><b>Key mappings</b> ({@link KeyMapping}): the stack carries a plugin's own PDC key (any value). For items whose
+ *       per-copy data rules out a data pattern. Checked before pattern mappings.</li>
+ * </ul>
  */
 public final class MagicItemTagging {
 
@@ -28,6 +35,9 @@ public final class MagicItemTagging {
 		return MagicItemBehaviorKeys.magicItem();
 	}
 	private static final Map<Object, Collection<TagMapping>> REGISTRY = new ConcurrentHashMap<>();
+	private static final Map<Object, List<KeyMapping>> KEY_REGISTRY = new ConcurrentHashMap<>();
+	/** Every key mapping, rebuilt whenever {@link #KEY_REGISTRY} changes; read without locking. */
+	private static volatile List<KeyMapping> keyMappings = List.of();
 	/** Rebuilt whenever the registry changes; read without locking. */
 	private static volatile LegacyTagIndex index = LegacyTagIndex.EMPTY;
 
@@ -59,6 +69,46 @@ public final class MagicItemTagging {
 		rebuildIndex();
 	}
 
+	/** Adds one pattern mapping for [owner], keeping the owner's earlier ones (unlike {@link #register}). */
+	public static void add(Object owner, TagMapping mapping) {
+		if (owner == null || mapping == null)
+			return;
+		synchronized (MagicItemTagging.class) {
+			List<TagMapping> merged = new ArrayList<>(REGISTRY.getOrDefault(owner, List.of()));
+			merged.add(mapping);
+			REGISTRY.put(owner, merged);
+			rebuildIndex();
+		}
+	}
+
+	/** Maps stacks carrying [key] (any value) to the magic item [internalName]. */
+	public static synchronized void addKey(Object owner, NamespacedKey key, String internalName) {
+		if (owner == null || key == null || internalName == null || internalName.isBlank())
+			return;
+		KEY_REGISTRY.computeIfAbsent(owner, o -> new ArrayList<>()).add(new KeyMapping(key, internalName));
+		rebuildKeys();
+	}
+
+	/** Drops [owner]'s pattern and key mappings. */
+	public static synchronized void unregisterAll(Object owner) {
+		if (owner == null)
+			return;
+		boolean patterns = REGISTRY.remove(owner) != null;
+		boolean keys = KEY_REGISTRY.remove(owner) != null;
+		if (patterns)
+			rebuildIndex();
+		if (keys)
+			rebuildKeys();
+	}
+
+	private static synchronized void rebuildKeys() {
+		List<KeyMapping> all = new ArrayList<>();
+		for (List<KeyMapping> mappings : KEY_REGISTRY.values())
+			all.addAll(mappings);
+		keyMappings = List.copyOf(all);
+		revision.incrementAndGet();
+	}
+
 	private static synchronized void rebuildIndex() {
 		List<TagMapping> all = new ArrayList<>();
 		for (Collection<TagMapping> mappings : REGISTRY.values())
@@ -68,14 +118,14 @@ public final class MagicItemTagging {
 	}
 
 	public static boolean hasMappings() {
-		return !REGISTRY.isEmpty();
+		return !REGISTRY.isEmpty() || !keyMappings.isEmpty();
 	}
 
 	/** Registered mappings across owners (a level for diagnostics). */
 	public static int mappingCount() {
 		int count = 0;
 		for (Collection<TagMapping> mappings : REGISTRY.values()) count += mappings.size();
-		return count;
+		return count + keyMappings.size();
 	}
 
 	/**
@@ -87,7 +137,8 @@ public final class MagicItemTagging {
 	 */
 	public static TagResult applyTagIfNeeded(@Nullable ItemStack item) {
 		LegacyTagIndex current = index;
-		if (item == null || item.getType().isAir() || current.size() == 0)
+		List<KeyMapping> keys = keyMappings;
+		if (item == null || item.getType().isAir() || (current.size() == 0 && keys.isEmpty()))
 			return TagResult.unchanged(item);
 
 		ItemMeta meta = item.getItemMeta();
@@ -105,6 +156,17 @@ public final class MagicItemTagging {
 			PerformanceDiagnostics.count("tag.known-name-skips");
 			return TagResult.unchanged(item);
 		}
+
+		for (KeyMapping keyMapping : keys) {
+			if (!meta.getPersistentDataContainer().has(keyMapping.key()))
+				continue;
+			MagicItem target = MagicItems.getMagicItems().get(keyMapping.internalName());
+			if (target == null)
+				continue; // definition not registered (yet): leave the stack for a later check
+			return stamp(item, keyMapping.internalName(), target);
+		}
+		if (current.size() == 0)
+			return TagResult.unchanged(item);
 
 		// Type check before reading the stack's data. The stack's own ignores only matter when it misses.
 		if (!current.mayMatchType(item.getType()) && !ignoresIndexedAttribute(item)) {
@@ -128,21 +190,24 @@ public final class MagicItemTagging {
 				if (tagMapping.internalName().equals(currentName))
 					return TagResult.unchanged(item);
 
-				ItemStack tagged = item.clone();
-				ItemMeta taggedMeta = tagged.getItemMeta();
-				if (taggedMeta == null)
-					return TagResult.unchanged(item);
-				taggedMeta.getPersistentDataContainer().set(nameKey(), PersistentDataType.STRING,
-						tagMapping.internalName());
-				tagged.setItemMeta(taggedMeta);
-				PerformanceDiagnostics.count("items.tagged");
-				return new TagResult(tagged, true, tagMapping.internalName(), tagMapping.magicItem());
+				return stamp(item, tagMapping.internalName(), tagMapping.magicItem());
 			}
 		} finally {
 			PerformanceDiagnostics.count("tag.mapping-checks", checked);
 		}
 
 		return TagResult.unchanged(item);
+	}
+
+	private static TagResult stamp(ItemStack item, String internalName, MagicItem magicItem) {
+		ItemStack tagged = item.clone();
+		ItemMeta taggedMeta = tagged.getItemMeta();
+		if (taggedMeta == null)
+			return TagResult.unchanged(item);
+		taggedMeta.getPersistentDataContainer().set(nameKey(), PersistentDataType.STRING, internalName);
+		tagged.setItemMeta(taggedMeta);
+		PerformanceDiagnostics.count("items.tagged");
+		return new TagResult(tagged, true, internalName, magicItem);
 	}
 
 	/** True when the stack itself ignores type or model, so any pattern value could still match. */
@@ -159,6 +224,9 @@ public final class MagicItemTagging {
 	}
 
 	public record TagMapping(String internalName, MagicItemData patternData, MagicItem magicItem) {
+	}
+
+	public record KeyMapping(NamespacedKey key, String internalName) {
 	}
 
 	public record TagResult(@Nullable ItemStack stack, boolean tagged, @Nullable String internalName,

@@ -20,6 +20,7 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `com.sneakyitems.events.SneakyItemsDefinitionsChangedEvent` | Fired once a burst of registrations settles, with the added/changed/removed names |
 | `com.sneakyitems.events.MagicItemClickEvent` | Left/right click with a magic item; see [Magic item clicks](#magic-item-clicks) |
 | `com.sneakyitems.events.MagicItemSwingEvent` | Raw main-hand arm swing with a magic item |
+| `SneakyItemsAPI.registerLegacyKey` / `registerLegacyPattern` | Migrate copies made before an item was a magic item; see [Migrating existing items](#migrating-existing-items) |
 | `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
@@ -54,6 +55,24 @@ loads and inventory opens are still handled right away.
 
 Legacy tagging skips stacks already tagged with a registered name, and only compares a stack against
 mappings with the same item type and model (custom model data or item model).
+
+### Migrating existing items
+
+Every custom item a player can hold is a magic item. When a plugin turns an item it used to build itself into a
+registered definition, copies already in inventories, chests and on the ground still carry only the old identity.
+Register a legacy mapping next to the definition and the updater stamps those copies (`magicitem`) the next time it
+sees them, then rebuilds them from the definition:
+
+- **Own PDC key** (`registerLegacyKey(owner, key, internalName)`): any stack carrying that key, whatever its value.
+  The rebuild keeps the stack's other PDC keys, so per-copy data (an award's winner, a polaroid's photo) survives; add
+  `ignored-attributes` to the definition for per-copy name, lore or texture. Checked before pattern mappings, and
+  only once the definition is registered.
+- **Look only** (`registerLegacyPattern(owner, internalName, pattern)`): stacks matching a magic-item data string,
+  for example `paper{"item-model":"lom:coach_whistle"}`; only the attributes it names are compared. The same
+  mechanism as `legacy-item-tag-mappings.yml`, shipped by the owning plugin instead of edited on the server.
+
+`clearOwner` drops an owner's mappings with its definitions (so register both again on reload); the YAML file's
+mappings and the `legacy-tags on|off` switch are separate and unaffected.
 
 ### Magic item clicks
 

@@ -22,6 +22,7 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `com.sneakyitems.events.MagicItemSwingEvent` | Raw main-hand arm swing with a magic item |
 | `SneakyItemsAPI.registerLegacyKey` / `registerLegacyPattern` | Migrate copies made before an item was a magic item; see [Migrating existing items](#migrating-existing-items) |
 | `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
+| `SneakyItemsAPI.carriedCount` / `carries` / `carriedIds` / `refreshCarried`, `com.sneakyitems.events.CarriedItemChangeEvent` | Live index of the magic items a player carries; see [Carried items](#carried-items) |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 
@@ -106,6 +107,32 @@ Interact triggers (`hasInteractResults()`) also take `setUseItemInHand` / `setUs
 `MagicItemSwingEvent` is the raw alternative: every main-hand arm swing with a magic item, whatever `cast-on-animate`
 says, except the swing of a drop. Fired a tick late and not cancellable. A swing isn't always a left click
 (right-clicking a block swings too), so use it only when "any swing" is what you want.
+
+### Carried items
+
+SneakyItems keeps a per-player count of the magic items in the player's own inventory (storage, hotbar, armor,
+offhand; not the cursor, open containers or bags) so plugins don't scan inventories themselves. An item counts when
+`keyOf` says it is that id.
+
+- `carriedCount(player, id)`, `carries(player, id)`, `carriedIds(player)` (an unmodifiable snapshot that never changes
+  after it is returned). Main thread only: other threads get an `IllegalStateException`. Reads are cached.
+- `CarriedItemChangeEvent(player, itemId, oldCount, newCount)` fires, synchronously, for each id whose count changed.
+  It is only built when something listens.
+- Counts follow Paper's `PlayerInventorySlotChangeEvent`, which fires when Paper syncs the player's menu (the same tick
+  or the next), not when a plugin calls `setItem`. A slot change involving a magic item marks the player stale and
+  one 41-slot recount runs at the next query, or on the next tick when the change event has listeners. Call
+  `refreshCarried(player)` to see a change made earlier in the same tick. Joining scans once; quitting frees the state.
+- Events are delivered one batch at a time: a listener that changes inventories and calls `refreshCarried` has that
+  recount deferred until the batch has reached every listener, so for each player and id the events chain
+  (each old count is the previous new count). Changing the active PDC namespace (any owner registering under a new one)
+  recounts every tracked player, so event-only consumers get the transitions.
+- Cost (estimate, not measured on a live server): with a listener on `PlayerInventorySlotChangeEvent` Paper clones the
+  old and new stack and builds the event for every slot change of every player, roughly 1-3 microseconds per change
+  including our two PDC reads (a plain stack allocates one empty tag; a magic one adds a 41-slot recount, about the
+  same again, when it is next read). Slot changes in normal play are about 0-3 per player per second (placing or
+  using stack items, pickups, drops), in bursts of a few dozen when a container opens (up to 36 stacks reported at
+  once). Nothing here runs per tick or per movement. Hooking `InventoryClick`/pickup/drop instead would be cheaper but
+  misses plugin `setItem`/`addItem`, consumption and crafting, so it is not equally reliable.
 
 `SneakyItemsAPI` lookups take the internal name. "Inventory" (`inInventory`, `findSlots`, `count`) means the main
 inventory plus the offhand; armor slots (`wearing`, optionally one slot) and the cursor don't count.

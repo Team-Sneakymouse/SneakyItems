@@ -4,15 +4,18 @@ import com.sneakyitems.commands.SneakyItemsCommand
 import com.sneakyitems.events.SneakyItemsLoadedEvent
 import com.sneakyitems.api.MagicItemRegistry
 import com.sneakyitems.integration.Probe
+import com.sneakyitems.listener.CarriedItemListener
 import com.sneakyitems.listener.ItemRecheckService
 import com.sneakyitems.listener.MagicItemClickListener
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
+import com.sneakyitems.service.CarriedItemIndex
 import com.sneakyitems.service.LegacyItemTagMappings
 import com.sneakyitems.util.items.CharacterExpirationHook
 import com.sneakyitems.util.items.ItemExpirationListener
 import com.sneakyitems.util.items.ItemExpirationScheduler
 import com.sneakyitems.util.items.ItemSoulboundListener
+import com.sneakyitems.util.magicitems.MagicItemBehaviorKeys
 import com.sneakyitems.util.magicitems.MagicItemBehaviorReceiveListener
 import com.sneakyitems.util.magicitems.MagicItemUpdater
 import com.sneakyitems.util.performance.PerformanceDiagnostics
@@ -40,6 +43,9 @@ open class SneakyItems : JavaPlugin() {
 
     /** Fires `MagicItemClickEvent`; `click-events.*` config is applied on reload. */
     val clicks = MagicItemClickListener(this)
+
+    /** Per-player counts of carried magic items; queried through `SneakyItemsAPI.carriedCount` and friends. */
+    val carried = CarriedItemIndex(this)
 
     override fun onLoad() {
         instance = this
@@ -81,6 +87,8 @@ open class SneakyItems : JavaPlugin() {
 
     override fun onDisable() {
         recheck.stop()
+        carried.clear()
+        MagicItemBehaviorKeys.setNamespaceListener(null)
         probe.unhook()
         PerformanceDiagnostics.detach()
         ItemExpirationScheduler.shutdown()
@@ -114,6 +122,9 @@ open class SneakyItems : JavaPlugin() {
         pm.registerEvents(MagicItemBehaviorReceiveListener(), this)
         pm.registerEvents(OwnerDefinitionCleanupListener(), this)
         pm.registerEvents(clicks, this)
+        pm.registerEvents(CarriedItemListener(carried), this)
+        MagicItemBehaviorKeys.setNamespaceListener { carried.onNamespaceChanged() }
+        server.onlinePlayers.forEach { carried.join(it) }
         listenersRegistered = true
     }
 }

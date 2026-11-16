@@ -18,9 +18,26 @@ public final class MagicItemBehaviorKeys {
 
     private MagicItemBehaviorKeys() {}
 
+    private static final java.util.concurrent.atomic.AtomicInteger namespaceRevision = new java.util.concurrent.atomic.AtomicInteger();
+    private static volatile Runnable namespaceListener;
+
     public static void setPdcNamespace(String namespace) {
         if (namespace == null || namespace.isBlank()) return;
+        if (namespace.equals(pdcNamespace)) return;
         pdcNamespace = namespace;
+        namespaceRevision.incrementAndGet();
+        Runnable listener = namespaceListener;
+        if (listener != null) listener.run();
+    }
+
+    /** Bumped each time the active namespace changes; caches of {@link #readMagicItemName} results compare it. */
+    public static int namespaceRevision() {
+        return namespaceRevision.get();
+    }
+
+    /** Called (on the calling thread) after the active namespace changed. One listener; null clears it. */
+    public static void setNamespaceListener(Runnable listener) {
+        namespaceListener = listener;
     }
 
     public static String getPdcNamespace() {

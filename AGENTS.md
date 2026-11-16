@@ -32,6 +32,8 @@ src/main/kotlin/com/sneakyitems/
   api/SneakyItemsAPI.kt       # Consumer registration API
   api/MagicItemRegistry.kt    # Owner + PDC namespace registry
   service/LegacyItemTagMappings.kt  # data-folder legacy-item-tag-mappings.yml
+  service/CarriedItemIndex.kt       # per-player carried magic-item counts (main thread only; dirty flag + recount)
+  listener/CarriedItemListener.kt   # feeds the index; PlayerInventorySlotChangeEvent only marks dirty, never does deltas
   commands/SneakyItemsCommand.kt    # /sneakyitems reload | legacy-tags
 src/main/java/com/sneakyitems/
   platform/SneakyItemsPlatform.java

@@ -1,5 +1,6 @@
 package com.sneakyitems.api
 
+import com.sneakyitems.SneakyItems
 import com.sneakyitems.util.magicitems.MagicItem
 import com.sneakyitems.util.magicitems.MagicItemData
 import com.sneakyitems.util.magicitems.MagicItems
@@ -147,6 +148,40 @@ object SneakyItemsAPI {
   @JvmStatic
   fun count(player: Player, key: String): Int =
       INVENTORY_SLOTS.sumOf { slot -> player.inventory.getItem(slot)?.takeIf { isItem(it, key) }?.amount ?: 0 }
+
+  // --- carried magic items (live per-player index; see CarriedItemChangeEvent) ---
+  //
+  // "Carried" = the player's own inventory: storage, hotbar, armor and offhand. Not the cursor, open containers or
+  // bags (unlike [count] / [inInventory], armor counts here). An item counts exactly when [keyOf] says it is the id.
+  // Main thread only: these throw IllegalStateException elsewhere. They read a cached count, never rescan per call;
+  // the cache follows Paper's PlayerInventorySlotChangeEvent, which fires when Paper next syncs the player's menu, so
+  // a change made earlier in the same tick may not show yet (call [refreshCarried] to force it).
+
+  /** Total amount of the magic item [itemId] [player] carries (0 when none, or when [player] is offline). */
+  @JvmStatic
+  fun carriedCount(player: Player, itemId: String): Int = carriedIndex().count(player, itemId)
+
+  /** True when [player] carries at least one of the magic item [itemId]. */
+  @JvmStatic
+  fun carries(player: Player, itemId: String): Boolean = carriedIndex().carries(player, itemId)
+
+  /**
+   * Ids of the magic items [player] carries. An unmodifiable snapshot: it never changes after it is returned, so it is
+   * safe to iterate while inventories change; call again for newer data. Empty when none, or when [player] is offline.
+   */
+  @JvmStatic
+  fun carriedIds(player: Player): Set<String> = carriedIndex().ids(player)
+
+  /**
+   * Recounts [player]'s inventory now (one 41-slot scan) and fires [com.sneakyitems.events.CarriedItemChangeEvent]
+   * for differences. Only needed to see a change made earlier in the same tick that Paper has not synced yet.
+   * Called from a [com.sneakyitems.events.CarriedItemChangeEvent] listener it is deferred until every listener has
+   * seen the current batch, so events always chain (each old count is the previous new count).
+   */
+  @JvmStatic
+  fun refreshCarried(player: Player) = carriedIndex().refresh(player)
+
+  private fun carriedIndex() = SneakyItems.instance.carried
 
   private const val OFFHAND_SLOT = 40
   private val INVENTORY_SLOTS: List<Int> = (0..35).toList() + OFFHAND_SLOT

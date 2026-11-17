@@ -41,6 +41,70 @@ class CarriedItemIndex(private val plugin: Plugin) {
   private var dispatching = false
   private val deferred = ArrayList<State>()
 
+  /**
+   * Internal subscriber (SneakyItems' own watch service): [changed] is called after a recount is committed, once per id
+   * whose count changed, before the public [CarriedItemChangeEvent]s for that recount. While [wanted] is true it makes
+   * stale players recount on the next tick, like a listener. Not called during a quit (counts are dropped silently).
+   */
+  interface Observer {
+    /** True while the observer needs notifications (it has watches). */
+    val wanted: Boolean
+
+    fun changed(player: Player, itemId: String, oldCount: Int, newCount: Int)
+  }
+
+  /** Bound once by [bindObserver]; never replaced. */
+  private var observer: Observer? = null
+
+  /** Tasks waiting for the current batch of notifications to be delivered ([afterDispatch]). */
+  private val afterDispatch = ArrayList<Runnable>()
+
+  /** Binds the [Observer] (SneakyItems' wiring, once). Throws if one is bound already, so it can't be replaced. */
+  internal fun bindObserver(value: Observer) {
+    check(observer == null) { "CarriedItemIndex observer is already bound" }
+    observer = value
+  }
+
+  /** True while a batch of notifications is being delivered: recounts requested now are deferred until it ends. */
+  internal val dispatchingNow: Boolean get() = dispatching
+
+  /** Runs [task] now, or right after the current batch (and the recounts it deferred) when one is being delivered. */
+  internal fun afterDispatch(task: Runnable) {
+    requireMainThread()
+    if (dispatching) afterDispatch.add(task) else task.run()
+  }
+
+  /**
+   * The amount of [itemId] in [player]'s 41 slots, read from the live inventory now. Commits nothing and fires
+   * nothing, so it is safe while a batch is being delivered (when [refresh] is deferred).
+   */
+  internal fun liveCounts(player: Player): Map<String, Int> {
+    requireMainThread()
+    if (!player.isOnline) return emptyMap()
+    var counts: HashMap<String, Int>? = null
+    val inventory = player.inventory
+    for (slot in SLOTS) {
+      val stack = inventory.getItem(slot) ?: continue
+      val id = MagicItemBehaviorKeys.readMagicItemName(stack) ?: continue
+      if (counts == null) counts = HashMap()
+      counts.merge(id, stack.amount, Int::plus)
+    }
+    return counts ?: emptyMap()
+  }
+
+  /** [liveCounts] for one id. */
+  internal fun liveCount(player: Player, itemId: String): Int {
+    requireMainThread()
+    if (!player.isOnline) return 0
+    var total = 0
+    val inventory = player.inventory
+    for (slot in SLOTS) {
+      val stack = inventory.getItem(slot) ?: continue
+      if (MagicItemBehaviorKeys.readMagicItemName(stack) == itemId) total += stack.amount
+    }
+    return total
+  }
+
   /** Players currently tracked (a level for tests and diagnostics). */
   val trackedPlayers: Int get() = states.size
 
@@ -64,6 +128,7 @@ class CarriedItemIndex(private val plugin: Plugin) {
     states.clear()
     pending.clear()
     deferred.clear()
+    afterDispatch.clear()
   }
 
   /**
@@ -88,7 +153,7 @@ class CarriedItemIndex(private val plugin: Plugin) {
       if (plugin.isEnabled) plugin.server.scheduler.runTask(plugin, Runnable { onNamespaceChanged() })
       return
     }
-    val listening = hasListeners()
+    val listening = wantsChanges()
     for (state in states.values) {
       state.dirty = true
       if (listening && !state.queued) enqueue(state)
@@ -99,7 +164,7 @@ class CarriedItemIndex(private val plugin: Plugin) {
   fun invalidate(uuid: UUID) {
     val state = states[uuid] ?: return
     state.dirty = true
-    if (!state.queued && hasListeners()) enqueue(state)
+    if (!state.queued && wantsChanges()) enqueue(state)
   }
 
   // --- queries (called by SneakyItemsAPI) ---
@@ -181,18 +246,21 @@ class CarriedItemIndex(private val plugin: Plugin) {
     if (counts == previous) return
     state.counts = counts
     state.ids = if (next == null) emptySet() else java.util.Collections.unmodifiableSet(next.keys)
-    if (!hasListeners()) return
-    val changes = ArrayList<CarriedItemChangeEvent>()
+    val watcher = observer?.takeIf { it.wanted }
+    val listening = hasListeners()
+    if (watcher == null && !listening) return
+    val changes = ArrayList<Change>()
     for ((id, was) in previous) {
       val now = counts[id] ?: 0
-      if (now != was) changes.add(CarriedItemChangeEvent(player, id, was, now))
+      if (now != was) changes.add(Change(id, was, now))
     }
     for ((id, now) in counts) {
-      if (!previous.containsKey(id)) changes.add(CarriedItemChangeEvent(player, id, 0, now))
+      if (!previous.containsKey(id)) changes.add(Change(id, 0, now))
     }
     dispatching = true
     try {
-      for (event in changes) Bukkit.getPluginManager().callEvent(event)
+      if (watcher != null) for (c in changes) watcher.changed(player, c.id, c.was, c.now)
+      if (listening) for (c in changes) Bukkit.getPluginManager().callEvent(CarriedItemChangeEvent(player, c.id, c.was, c.now))
     } finally {
       dispatching = false
     }
@@ -210,13 +278,22 @@ class CarriedItemIndex(private val plugin: Plugin) {
         recount(state, player)
       }
     }
+    if (!dispatching && afterDispatch.isNotEmpty()) {
+      val tasks = ArrayList(afterDispatch)
+      afterDispatch.clear()
+      for (task in tasks) task.run()
+    }
   }
+
+  private fun wantsChanges(): Boolean = observer?.wanted == true || hasListeners()
 
   private fun hasListeners(): Boolean = CarriedItemChangeEvent.getHandlerList().registeredListeners.isNotEmpty()
 
   private fun requireMainThread() {
     check(Bukkit.isPrimaryThread()) { "Carried-item queries must be made from the main server thread" }
   }
+
+  private class Change(val id: String, val was: Int, val now: Int)
 
   private companion object {
     val SLOTS = 0..40

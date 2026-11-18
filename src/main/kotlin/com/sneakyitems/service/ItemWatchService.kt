@@ -2,6 +2,7 @@ package com.sneakyitems.service
 
 import com.sneakyitems.api.HeldSlot
 import com.sneakyitems.api.ItemWatch
+import com.sneakyitems.api.WatchMembership
 import com.sneakyitems.listener.HeldItemListener
 import com.sneakyutils.triggers.PlayerScope
 import com.sneakyutils.triggers.PlayerTick
@@ -67,6 +68,8 @@ class ItemWatchService(
   fun onQuitStart(event: PlayerQuitEvent) {
     val uuid = event.player.uniqueId
     quitting.add(uuid)
+    // members leave now (their `left` runs while the player is still online), not when SneakyUtils drops them at MONITOR
+    for (w in (carriedWatches.values.flatten() + heldWatches.values.flatten())) w.leave(event.player)
     if (plugin.isEnabled) plugin.server.scheduler.runTask(plugin, Runnable { if (plugin.server.getPlayer(uuid)?.isOnline != true) quitting.remove(uuid) })
   }
 
@@ -87,14 +90,21 @@ class ItemWatchService(
   /** True while held tracking runs (a level for tests). */
   val trackingHeld: Boolean get() = heldListener != null
 
-  fun whileCarrying(owner: Plugin, itemId: String, intervalTicks: Int, handler: PlayerTick, options: PlayerTimerOptions): ItemWatch {
-    val watch = ItemWatch(this, itemId, null, newTimer(owner, itemId, intervalTicks, handler, options))
+  fun whileCarrying(
+      owner: Plugin,
+      itemId: String,
+      intervalTicks: Int,
+      handler: PlayerTick,
+      options: PlayerTimerOptions,
+      membership: WatchMembership? = null,
+  ): ItemWatch {
+    val watch = ItemWatch(this, itemId, null, newTimer(owner, itemId, intervalTicks, handler, options), membership)
     add(carriedWatches, watch)
     if (carried.dispatchingNow) {
       // Inside a CarriedItemChangeEvent listener: recounts are deferred until the batch is delivered (so
       // notifications stay ordered), so seed from a live read now, queue the recounts, and once they ran set the
       // membership to the committed counts (catching a change made after this call within the same batch).
-      for (p in enrollable()) if (carried.liveCount(p, itemId) > 0) watch.playerTimer.add(p)
+      for (p in enrollable()) if (carried.liveCount(p, itemId) > 0) watch.enter(p)
       for (p in enrollable()) carried.refresh(p)
       carried.afterDispatch { settleAndReconcile(watch) }
       return watch
@@ -113,8 +123,9 @@ class ItemWatchService(
       intervalTicks: Int,
       handler: PlayerTick,
       options: PlayerTimerOptions,
+      membership: WatchMembership? = null,
   ): ItemWatch {
-    val watch = ItemWatch(this, itemId, where, newTimer(owner, itemId, intervalTicks, handler, options))
+    val watch = ItemWatch(this, itemId, where, newTimer(owner, itemId, intervalTicks, handler, options), membership)
     add(heldWatches, watch)
     if (heldListener == null) {
       held.start() // reads the live inventory of every online player
@@ -126,7 +137,7 @@ class ItemWatchService(
     }
     for (p in enrollable()) {
       if (!watch.isActive) break
-      if (held.holds(p, itemId, where)) watch.playerTimer.add(p)
+      if (held.holds(p, itemId, where)) watch.enter(p)
     }
     return watch
   }
@@ -167,13 +178,14 @@ class ItemWatchService(
   private fun reconcileCarried(watch: ItemWatch) {
     for (p in plugin.server.onlinePlayers) {
       if (!watch.isActive) return
-      if (p.uniqueId !in quitting && carried.carries(p, watch.itemId)) watch.playerTimer.add(p) else watch.playerTimer.remove(p)
+      if (p.uniqueId !in quitting && carried.carries(p, watch.itemId)) watch.enter(p) else watch.leave(p)
     }
   }
 
   /** [ItemWatch.close]: closes the timer and forgets the watch now. */
   fun close(watch: ItemWatch) {
     check(Bukkit.isPrimaryThread()) { "ItemWatch.close must be called on the main server thread" }
+    if (watch.isActive) for (p in plugin.server.onlinePlayers) watch.leave(p)
     watch.playerTimer.close()
     val map = if (watch.where == null) carriedWatches else heldWatches
     map[watch.itemId]?.let { list ->
@@ -249,7 +261,7 @@ class ItemWatchService(
         iterator.remove()
         continue
       }
-      if (newCount > 0 && player.uniqueId !in quitting) watch.playerTimer.add(player) else watch.playerTimer.remove(player)
+      if (newCount > 0 && player.uniqueId !in quitting) watch.enter(player) else watch.leave(player)
     }
     if (list.isEmpty()) carriedWatches.remove(itemId)
   }
@@ -264,8 +276,8 @@ class ItemWatchService(
           iterator.remove()
           continue
         }
-        if (player.uniqueId !in quitting && held.holds(player, id, watch.where!!)) watch.playerTimer.add(player)
-        else watch.playerTimer.remove(player)
+        if (player.uniqueId !in quitting && held.holds(player, id, watch.where!!)) watch.enter(player)
+        else watch.leave(player)
       }
       if (list.isEmpty()) heldWatches.remove(id)
     }

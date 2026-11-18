@@ -22,6 +22,7 @@ class ItemWatch internal constructor(
     /** Where the item must be ([SneakyItemsAPI.whileHolding]), or null for "carried" ([SneakyItemsAPI.whileCarrying]). */
     val where: HeldSlot?,
     private val timer: PlayerTimer,
+    private val membership: WatchMembership? = null,
 ) : AutoCloseable {
 
   /** The plugin that owns it (the `owner` it was made with). */
@@ -46,6 +47,29 @@ class ItemWatch internal constructor(
   override fun close() = service.close(this)
 
   internal val playerTimer: PlayerTimer get() = timer
+
+  /** Adds [player] to the timer; [WatchMembership.entered] runs when they were not in it before. */
+  internal fun enter(player: Player) {
+    if (timer.contains(player)) return
+    timer.add(player)
+    if (membership != null && timer.contains(player)) notify(player) { membership.entered(player) }
+  }
+
+  /** Removes [player] from the timer; [WatchMembership.left] runs when they were in it. */
+  internal fun leave(player: Player) {
+    if (!timer.contains(player)) return
+    timer.remove(player)
+    if (membership != null) notify(player) { membership.left(player) }
+  }
+
+  /** A throwing callback must not break SneakyItems' own bookkeeping: log it against the owner and go on. */
+  private inline fun notify(player: Player, call: () -> Unit) {
+    try {
+      call()
+    } catch (e: Exception) {
+      owner.logger.log(java.util.logging.Level.WARNING, "ItemWatch($itemId) membership callback failed for ${player.name}", e)
+    }
+  }
 
   override fun toString(): String = "ItemWatch(itemId=$itemId, where=$where, timer=${timer.id}, active=$isActive)"
 }

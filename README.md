@@ -4,7 +4,8 @@ Paper plugin that owns the LoM **magic item** platform: definition registry, YAM
 inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement. Other plugins (notably
 **MagicSpells**) register definitions via the public API without embedding item parsers.
 
-**Legendary items:** documented design only (see [AGENTS.md](./AGENTS.md)); not implemented in this plugin.
+**Legendary items:** the generic behaviours they need (one per player, no chests, never lost, unique copies, set
+down on blocks) are [item rules](#item-rules); the items themselves live in their own plugins (SneakyLegendarys).
 
 ## API (for consumers)
 
@@ -24,6 +25,8 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
 | `SneakyItemsAPI.carriedCount` / `carries` / `carriedIds` / `refreshCarried`, `com.sneakyitems.events.CarriedItemChangeEvent` | Live index of the magic items a player carries; see [Carried items](#carried-items) |
 | `SneakyItemsAPI.whileCarrying` / `whileHolding`, `com.sneakyitems.api.ItemWatch` / `HeldSlot` | SneakyUtils per-player timer for just the players carrying or holding an item; see [Timers while carrying or holding](#timers-while-carrying-or-holding) |
+| `WatchMembership` (the `whileCarrying` / `whileHolding` overloads that take one) | `entered` / `left` callbacks when a player joins or leaves a watch's timer |
+| `SneakyItemsAPI.itemRules`, `ItemRules` / `ItemRuleGroup` / `ItemRuleHooks` | Carry limit, no containers, protected on the ground, drop on leave, unique serials, set down on blocks; see [Item rules](#item-rules) |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 
@@ -186,6 +189,43 @@ glow.close();
   held-slot and swap events that read at most six slots when an item id changes (durability loss on a held tool costs
   two PDC reads). While a `whileCarrying` exists, the carried index recounts a player on the tick after a magic-item
   slot change (as when the change event has listeners).
+
+- Enter / leave callbacks: pass a `WatchMembership` to the overloads that take one. `entered(player)` runs when a player
+  joins the timer (the item arrived, or they had it when you subscribed), before their first tick from it; `left(player)`
+  when they leave (the item went, they quit, or you closed the watch), after their last. No `left` runs when the owner
+  disables. Keep them short; one that throws is logged and ignored.
+
+### Item rules
+
+Generic rules for special items, so a plugin keeps only what is special about its items (the Dragon Orbs in
+SneakyLegendarys use all of them). Items are matched by magic item id; register the definitions first.
+
+```kotlin
+val orbs = SneakyItemsAPI.itemRules(plugin, "dragon_orbs", (1..9).map { "legendary_dragon_orb_$it" },
+    ItemRules.builder()
+        .carryLimit(1).bypassPermission("myplugin.admin").bypass { p -> hasTag(p, "monica") }
+        .noContainers(true).protectOnGround(true).dropOnLeave(true)
+        .unique(true).placement(Placement())
+        .hooks(object : ItemRuleHooks {
+          override fun refused(player: Player, itemId: String, reason: RuleRefusal) = player.sendActionBar(...)
+        })
+        .build())
+orbs.give("legendary_dragon_orb_3", player)   // a new live copy; older copies go stale
+orbs.locate("legendary_dragon_orb_3")         // holder, entity, or last saved spot
+```
+
+| Rule | Effect |
+|------|--------|
+| `carryLimit(n)` | At most `n` items of the group per player (inventory, armor, offhand, cursor and crafting grid together). Pickups and taking a placed one back past it are refused. `bypassPermission` / `bypass` exempt players (check characters, not accounts, in `bypass`). |
+| `noContainers` | Never in a container (ender chest and the 2x2 crafting grid included), a bundle, an item frame or other entity, an armour stand, a hopper, or an insert block (decorated pot, shelves, chiseled bookshelf, lectern, jukebox, flower pot, campfire, composter, vault). The creative tab is exempt. |
+| `protectOnGround` | Dropped copies never despawn, can't be hurt, and no mob or hopper picks them up. Copies get `magicspells:magicspellpermanentdata_grounditem_placeable = "false"` so SneakyGroundItems leaves them vanilla drops (its display pickup would skip the carry limit). |
+| `dropOnLeave` | Death (even with keepInventory) and quit drop them where the player is. |
+| `unique` | One live copy per item id. Copies made by the group carry a serial (`serialKey`, default `sneakyitems:serial`); any copy whose serial isn't the newest vanishes when seen (inventory click, join, pickup, chunk load, character switch). The group keeps where each item is in `plugins/SneakyItems/unique/<owner>-<group>.yml` and checks every 5 s: an item whose holder no longer has it, or whose ground entity is gone from a loaded chunk, comes back on the ground where it was last (lifted out of the void). With `dropOnLeave`, a SneakyCharacterManager character switch puts the held one back on the ground too. A stack without a serial (a plain give of the definition) is never live: make copies with `create` / `give` / `respawn`. `adopt(id, serial)` keeps copies from before the group existed live. |
+| `placement(Placement(scale, lift, hitbox))` | Right-click the top of a block to set it down as an `ItemDisplay` with an `Interaction` hitbox (tag `sneakyitems_placed`); sneak to place on blocks with their own use. Click it (either button) to take it back. `place(id, location)` places from code. |
+
+`ItemRuleHooks` (all optional) hear `refused` (at most once per 2 s per player, so it can message as is), `pickedUp`,
+`dropped` (thrown, dropped on leave, respawned), `placed` and `taken`. A group ends with `close()`, when its owner
+disables, and when SneakyItems disables; registering the same owner + group id again replaces it. Main thread only.
 
 `SneakyItemsAPI` lookups take the internal name. "Inventory" (`inInventory`, `findSlots`, `count`) means the main
 inventory plus the offhand; armor slots (`wearing`, optionally one slot) and the cursor don't count.

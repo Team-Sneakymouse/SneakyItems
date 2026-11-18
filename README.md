@@ -23,6 +23,7 @@ inventory updater, legacy ItemTag mappings, and soulbound/expiration enforcement
 | `SneakyItemsAPI.registerLegacyKey` / `registerLegacyPattern` | Migrate copies made before an item was a magic item; see [Migrating existing items](#migrating-existing-items) |
 | `SneakyItemsAPI.keyOf` / `isItem` / `inMainHand` / `inOffHand` / `inEitherHand` / `onHotbar` / `inInventory` / `wearing` / `findSlots` / `count` | Find a magic item by internal name on a stack or player |
 | `SneakyItemsAPI.carriedCount` / `carries` / `carriedIds` / `refreshCarried`, `com.sneakyitems.events.CarriedItemChangeEvent` | Live index of the magic items a player carries; see [Carried items](#carried-items) |
+| `SneakyItemsAPI.whileCarrying` / `whileHolding`, `com.sneakyitems.api.ItemWatch` / `HeldSlot` | SneakyUtils per-player timer for just the players carrying or holding an item; see [Timers while carrying or holding](#timers-while-carrying-or-holding) |
 
 Creative soulbound bypass: `sneakyitems.nosoulbound` **and** Creative mode.
 
@@ -133,6 +134,58 @@ offhand; not the cursor, open containers or bags) so plugins don't scan inventor
   using stack items, pickups, drops), in bursts of a few dozen when a container opens (up to 36 stacks reported at
   once). Nothing here runs per tick or per movement. Hooking `InventoryClick`/pickup/drop instead would be cheaper but
   misses plugin `setItem`/`addItem`, consumption and crafting, so it is not equally reliable.
+
+### Timers while carrying or holding
+
+Don't poll every online player's hand or inventory every few ticks to find the few holding a magic item. Ask
+SneakyItems for a [SneakyUtils per-player timer](https://github.com/Team-Sneakymouse/SneakyUtils/blob/main/docs/triggers.md#timers)
+that contains exactly the players who have it:
+
+```java
+// every 5 ticks for each player with a lantern anywhere in their own inventory
+ItemWatch glow = SneakyItemsAPI.whileCarrying(plugin, "item-lantern", 5, p -> lantern.glow(p));
+// every 2 ticks for each player with the wand in the selected hotbar slot
+ItemWatch aim = SneakyItemsAPI.whileHolding(plugin, "item-wand", HeldSlot.MAIN_HAND, 2, p -> wand.showAim(p),
+    PlayerTimerOptions.builder().label("myplugin:wand-aim").build());
+// later, when the feature stops
+glow.close();
+```
+
+- `whileCarrying(owner, itemId, intervalTicks, handler[, options])`: players with `carries(player, itemId)` (storage,
+  hotbar, armor, offhand). `whileHolding(owner, itemId, where, intervalTicks, handler[, options])`: players with the
+  item in `where`: `MAIN_HAND` (selected hotbar slot), `OFF_HAND`, `EITHER_HAND`, `ARMOR` (any armor slot) or `ANY`
+  (hands or armor). The handler is SneakyUtils' `PlayerTick`; `options` are its `PlayerTimerOptions` (`label`,
+  `skipDead`), scope `ADDED` only. Interval 1..72,000 ticks.
+- The result is an `ItemWatch` (`AutoCloseable`) around a SneakyUtils per-player timer owned by `owner`: `close()` it
+  to stop (idempotent, main thread); it also ends when `owner` disables, and when SneakyItems disables. `isActive()`,
+  `contains(player)`, `getSize()`, and read-only diagnostics `getTimerId()` (the `/triggers` id) and `getLabel()`.
+  The timer itself is never handed out; SneakyItems alone adds and removes the players. Watches are independent of
+  each other. (It is not a SneakyUtils `Subscription` itself: only SneakyUtils may implement that interface.)
+- Subscribing reads every online player's inventory fresh (a carried recount, a held re-read), so a `setItem` made just
+  before counts; differences found that way also update the existing watches. Subscribing from a
+  `CarriedItemChangeEvent` listener works too: the new watch starts from a live read, and once the current batch of
+  events (and the recounts it deferred) has been delivered, its players are set to the recounted state. If a
+  `CarriedItemChangeEvent` listener changes the inventory in response to those recounts, SneakyItems recounts again
+  (comparing with the live inventory) before setting the players, so every watch ends up matching the inventory. Afterwards a player enters when the item
+  arrives and leaves when it goes or they quit; rejoining with it adds them again. A player whose quit has started is
+  never enrolled, even by a watch made from a `PlayerQuitEvent` handler (Paper still lists them as online then).
+  - Carrying follows the [carried index](#carried-items): the change is seen on the next scheduler pass after Paper
+    reports the slot change (pickup, drop, crafting, a plugin's `setItem`, ...).
+  - Holding re-reads the six places (selected slot, offhand, four armor slots) from the live inventory: hotbar
+    scrolls and hand swaps apply in the event itself (after other plugins could cancel it); inventory moves, pickups
+    into the held slot and armor equips when Paper reports the slot change or equipment change (right-click equip
+    included); item breaks, dispenser equips, deaths, respawns and world changes are checked on the next tick.
+    Paper's spurious slot events (unchanged slots re-reported when a container opens) change nothing.
+- Dead players: SneakyUtils pauses dead players in per-player timers by default. A death that keeps the inventory
+  leaves the player in the timer, not called until the respawn; a death that drops the item removes them. Pass
+  `PlayerTimerOptions.builder().skipDead(false)` to keep calling dead holders.
+- Membership follows SneakyItems' own indexes, not the public `CarriedItemChangeEvent` (anyone can fire one; a forged
+  event changes nothing). That event is still fired for listeners as before.
+- Cost: nothing per tick for players without the item (they are in no timer), and nothing at all while no watch
+  exists. Held tracking runs from the first `whileHolding` until the last one ends, with handlers for slot, equipment,
+  held-slot and swap events that read at most six slots when an item id changes (durability loss on a held tool costs
+  two PDC reads). While a `whileCarrying` exists, the carried index recounts a player on the tick after a magic-item
+  slot change (as when the change event has listeners).
 
 `SneakyItemsAPI` lookups take the internal name. "Inventory" (`inInventory`, `findSlots`, `count`) means the main
 inventory plus the offhand; armor slots (`wearing`, optionally one slot) and the cursor don't count.

@@ -10,6 +10,8 @@ import com.sneakyitems.listener.MagicItemClickListener
 import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.CarriedItemIndex
+import com.sneakyitems.service.HeldItemIndex
+import com.sneakyitems.service.ItemWatchService
 import com.sneakyitems.service.LegacyItemTagMappings
 import com.sneakyitems.util.items.CharacterExpirationHook
 import com.sneakyitems.util.items.ItemExpirationListener
@@ -19,6 +21,7 @@ import com.sneakyitems.util.magicitems.MagicItemBehaviorKeys
 import com.sneakyitems.util.magicitems.MagicItemBehaviorReceiveListener
 import com.sneakyitems.util.magicitems.MagicItemUpdater
 import com.sneakyitems.util.performance.PerformanceDiagnostics
+import com.sneakyutils.SneakyUtils
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents
 import org.bukkit.Bukkit
 import org.bukkit.event.HandlerList
@@ -46,6 +49,12 @@ open class SneakyItems : JavaPlugin() {
 
     /** Per-player counts of carried magic items; queried through `SneakyItemsAPI.carriedCount` and friends. */
     val carried = CarriedItemIndex(this)
+
+    /** Held-slot ids (main hand, offhand, armor); off until the first `SneakyItemsAPI.whileHolding`. */
+    internal val held = HeldItemIndex(this)
+
+    /** `SneakyItemsAPI.whileCarrying` / `whileHolding` subscriptions (SneakyUtils per-player timers). */
+    internal val watches = ItemWatchService(this, carried, held) { SneakyUtils.getTriggers() }
 
     override fun onLoad() {
         instance = this
@@ -87,6 +96,8 @@ open class SneakyItems : JavaPlugin() {
 
     override fun onDisable() {
         recheck.stop()
+        watches.clear()
+        held.clear()
         carried.clear()
         MagicItemBehaviorKeys.setNamespaceListener(null)
         probe.unhook()
@@ -123,7 +134,11 @@ open class SneakyItems : JavaPlugin() {
         pm.registerEvents(OwnerDefinitionCleanupListener(), this)
         pm.registerEvents(clicks, this)
         pm.registerEvents(CarriedItemListener(carried), this)
-        MagicItemBehaviorKeys.setNamespaceListener { carried.onNamespaceChanged() }
+        pm.registerEvents(watches, this)
+        MagicItemBehaviorKeys.setNamespaceListener {
+            carried.onNamespaceChanged()
+            held.onNamespaceChanged()
+        }
         server.onlinePlayers.forEach { carried.join(it) }
         listenersRegistered = true
     }

@@ -8,6 +8,8 @@ import com.sneakyitems.util.magicitems.MagicItemUpdater
 import org.bukkit.configuration.ConfigurationSection
 import com.sneakyitems.util.magicitems.MagicItemBehaviorKeys
 import com.sneakyitems.util.magicitems.MagicItemTagging
+import com.sneakyutils.triggers.PlayerTick
+import com.sneakyutils.triggers.PlayerTimerOptions
 import org.bukkit.NamespacedKey
 import org.bukkit.entity.Player
 import org.bukkit.inventory.EquipmentSlot
@@ -180,6 +182,63 @@ object SneakyItemsAPI {
    */
   @JvmStatic
   fun refreshCarried(player: Player) = carriedIndex().refresh(player)
+
+  // --- per-player timers while a magic item is carried or held (SneakyUtils triggers) ---
+  //
+  // These replace "poll every online player's hand/inventory every few ticks". Each returns an [ItemWatch] around a
+  // SneakyUtils per-player timer (`Triggers.everyForPlayers`, owner = [owner]) whose players SneakyItems adds and
+  // removes as the item comes and goes; a player without the item is in no timer and costs nothing per tick.
+  // Close the watch to stop; it also ends when [owner] disables (SneakyUtils' owner model) and when SneakyItems
+  // disables. Membership starts from a fresh read of every online player's inventory. Main thread only.
+
+  /**
+   * Calls [handler] every [intervalTicks] ticks (1..72000) for each player who carries [itemId] ([carries]: storage,
+   * hotbar, armor or offhand). A player enters the timer when the carried index sees the count go above 0 (on the
+   * next scheduler pass after Paper reports the slot change, see [carries]) and leaves when it drops to 0 or they
+   * quit; players carrying it when you subscribe (recounted now, so a `setItem` made just before counts) are added
+   * at once. Dead players are paused until they respawn
+   * (SneakyUtils' default; pass [PlayerTimerOptions] with `skipDead(false)` to keep calling them).
+   * Independent of other subscriptions for the same item.
+   */
+  @JvmStatic
+  fun whileCarrying(owner: Plugin, itemId: String, intervalTicks: Int, handler: PlayerTick): ItemWatch =
+      whileCarrying(owner, itemId, intervalTicks, handler, PlayerTimerOptions.DEFAULT)
+
+  /**
+   * [whileCarrying] with SneakyUtils timer options (a diagnostics `label`, `skipDead`). The scope must be
+   * [com.sneakyutils.triggers.PlayerScope.ADDED] (the default): SneakyItems decides who is in the timer.
+   */
+  @JvmStatic
+  fun whileCarrying(
+      owner: Plugin,
+      itemId: String,
+      intervalTicks: Int,
+      handler: PlayerTick,
+      options: PlayerTimerOptions,
+  ): ItemWatch = SneakyItems.instance.watches.whileCarrying(owner, itemId, intervalTicks, handler, options)
+
+  /**
+   * Calls [handler] every [intervalTicks] ticks (1..72000) for each player who has [itemId] in [where] (main hand =
+   * selected hotbar slot, offhand, armor; see [HeldSlot]). A player enters the timer as soon as SneakyItems sees the
+   * item arrive there (hotbar scroll and hand swap: in the event itself; inventory moves, pickups, equips: when
+   * Paper reports the slot or equipment change) and leaves when it goes; players holding it when you subscribe are
+   * added at once (read from the live inventory now). Dead players are paused until they respawn, as for
+   * [whileCarrying].
+   */
+  @JvmStatic
+  fun whileHolding(owner: Plugin, itemId: String, where: HeldSlot, intervalTicks: Int, handler: PlayerTick): ItemWatch =
+      whileHolding(owner, itemId, where, intervalTicks, handler, PlayerTimerOptions.DEFAULT)
+
+  /** [whileHolding] with SneakyUtils timer options; the scope must be `ADDED` (see [whileCarrying]). */
+  @JvmStatic
+  fun whileHolding(
+      owner: Plugin,
+      itemId: String,
+      where: HeldSlot,
+      intervalTicks: Int,
+      handler: PlayerTick,
+      options: PlayerTimerOptions,
+  ): ItemWatch = SneakyItems.instance.watches.whileHolding(owner, itemId, where, intervalTicks, handler, options)
 
   private fun carriedIndex() = SneakyItems.instance.carried
 

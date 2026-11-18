@@ -34,6 +34,9 @@ src/main/kotlin/com/sneakyitems/
   service/LegacyItemTagMappings.kt  # data-folder legacy-item-tag-mappings.yml
   service/CarriedItemIndex.kt       # per-player carried magic-item counts (main thread only; dirty flag + recount)
   listener/CarriedItemListener.kt   # feeds the index; PlayerInventorySlotChangeEvent only marks dirty, never does deltas
+  service/HeldItemIndex.kt          # main hand / offhand / armor magic-item ids; re-reads live slots, never deltas
+  listener/HeldItemListener.kt      # feeds it; registered with the first whileHolding
+  service/ItemWatchService.kt       # whileCarrying / whileHolding: SneakyUtils per-player timers kept to the holders
   commands/SneakyItemsCommand.kt    # /sneakyitems reload | legacy-tags
 src/main/java/com/sneakyitems/
   platform/SneakyItemsPlatform.java

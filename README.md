@@ -211,7 +211,7 @@ Coding agents follow [AGENTS.md](./AGENTS.md).
 
 ## Publishing
 
-Every push to `main` publishes `io.github.team-sneakymouse:sneakyitems:<version>` to `https://maven.sneakyrp.com/releases`
+Every push to `main` publishes `io.github.team-sneakymouse:sneakyitems:<version>` to `https://maven.sneakyrp.com/sneakymouse`
 through the shared [`Team-Sneakymouse/ci`](https://github.com/Team-Sneakymouse/ci) workflow
 (`.github/workflows/publish.yml`). The repository must be allowlisted for Infisical OIDC; private repositories
 also need the `INFISICAL_IDENTITY_ID` and `INFISICAL_DOMAIN` secrets.

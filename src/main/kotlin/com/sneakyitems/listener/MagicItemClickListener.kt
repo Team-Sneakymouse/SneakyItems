@@ -115,6 +115,8 @@ open class MagicItemClickListener(
         }
 
         if (event.action != Action.LEFT_CLICK_AIR || castOnAnimate) return
+        // only a magic main hand can fire; the task re-reads the hand, which can change within the tick
+        if (!holdsMagicItem(player)) return
         val at = tick
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             if (player.isOnline && !isSwingClickSuppressed(player, at)) fireLeft(player, Trigger.AIR, null)
@@ -162,6 +164,9 @@ open class MagicItemClickListener(
         val player = event.player
         val type = player.openInventory.type
         val noScreen = type == InventoryType.CRAFTING || type == InventoryType.CREATIVE
+        // nothing to schedule when the task could fire neither event (swings are every arm swing of every player)
+        if (MagicItemSwingEvent.getHandlerList().registeredListeners.isEmpty() && !(castOnAnimate && noScreen)) return
+        if (!holdsMagicItem(player)) return
         val at = tick
         plugin.server.scheduler.runTaskLater(plugin, Runnable {
             if (!player.isOnline) return@Runnable
@@ -203,6 +208,11 @@ open class MagicItemClickListener(
     private fun isSwingSuppressed(player: Player): Boolean {
         val until = noSwingUntil[player.uniqueId] ?: return false
         return clock() < until
+    }
+
+    private fun holdsMagicItem(player: Player): Boolean {
+        val item = player.inventory.itemInMainHand
+        return !item.isEmpty && MagicItemBehaviorKeys.readMagicItemName(item) != null
     }
 
     private fun fireLeft(player: Player, trigger: Trigger, entity: Entity?): MagicItemClickEvent? =

@@ -240,6 +240,50 @@ object SneakyItemsAPI {
       options: PlayerTimerOptions,
   ): ItemWatch = SneakyItems.instance.watches.whileHolding(owner, itemId, where, intervalTicks, handler, options)
 
+  /**
+   * [whileCarrying] with [membership] callbacks: `entered` when a player starts carrying [itemId] (or carries it when
+   * you subscribe), `left` when they stop, quit, or the watch is closed. See [WatchMembership].
+   */
+  @JvmStatic
+  fun whileCarrying(
+      owner: Plugin,
+      itemId: String,
+      intervalTicks: Int,
+      handler: PlayerTick,
+      options: PlayerTimerOptions,
+      membership: WatchMembership,
+  ): ItemWatch = SneakyItems.instance.watches.whileCarrying(owner, itemId, intervalTicks, handler, options, membership)
+
+  /**
+   * [whileHolding] with [membership] callbacks: `entered` when [itemId] comes into [where] (or is there when you
+   * subscribe), `left` when it goes, the player quits, or the watch is closed. See [WatchMembership].
+   */
+  @JvmStatic
+  fun whileHolding(
+      owner: Plugin,
+      itemId: String,
+      where: HeldSlot,
+      intervalTicks: Int,
+      handler: PlayerTick,
+      options: PlayerTimerOptions,
+      membership: WatchMembership,
+  ): ItemWatch = SneakyItems.instance.watches.whileHolding(owner, itemId, where, intervalTicks, handler, options, membership)
+
+  // --- item rules (carry limit, no containers, protected on the ground, unique serials, placing; see ItemRules) ---
+
+  /**
+   * Applies [rules] to the magic items [itemIds] as one group named [groupId] (unique per owner; the carry limit counts
+   * the whole group). Each id may belong to one group at a time. The group ends with [ItemRuleGroup.close], when
+   * [owner] disables, and when SneakyItems disables. Main thread only. See [ItemRules].
+   */
+  @JvmStatic
+  fun itemRules(owner: Plugin, groupId: String, itemIds: Collection<String>, rules: ItemRules): ItemRuleGroup =
+      SneakyItems.instance.rules.register(owner, groupId, itemIds, rules)
+
+  /** The rule group [stack] belongs to (by its magic item id), or null. */
+  @JvmStatic
+  fun ruleGroupOf(stack: ItemStack?): ItemRuleGroup? = SneakyItems.instance.rules.groupOf(stack)
+
   private fun carriedIndex() = SneakyItems.instance.carried
 
   private const val OFFHAND_SLOT = 40

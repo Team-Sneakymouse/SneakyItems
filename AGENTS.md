@@ -37,6 +37,8 @@ src/main/kotlin/com/sneakyitems/
   service/HeldItemIndex.kt          # main hand / offhand / armor magic-item ids; re-reads live slots, never deltas
   listener/HeldItemListener.kt      # feeds it; registered with the first whileHolding
   service/ItemWatchService.kt       # whileCarrying / whileHolding: SneakyUtils per-player timers kept to the holders
+  service/ItemRulesService.kt       # itemRules groups: carry limit, no containers, ground, leave, unique, placing
+  service/UniqueItemStore.kt        # unique items' live serial + last place, data/unique/<owner>-<group>.yml
   commands/SneakyItemsCommand.kt    # /sneakyitems reload | legacy-tags
 src/main/java/com/sneakyitems/
   platform/SneakyItemsPlatform.java
@@ -48,7 +50,8 @@ src/main/java/com/sneakyitems/
 Soulbound/expiration: owned here (`com.sneakyitems.util.items.*`, `com.sneakyitems.events.ItemExpireEvent`).
 PDC keys stay `magicspells:soulbound_owner` / `magicspells:expires_at`. Creative bypass: `sneakyitems.nosoulbound` + Creative.
 
-**Legendary** tier: policy/README only — do not implement in SneakyItems until explicitly tasked.
+**Legendary** items: their generic behaviours are item rules (`api/ItemRules.kt`, Momo 2026-11-18); the items
+themselves stay in their plugins.
 
 ## Commands
 

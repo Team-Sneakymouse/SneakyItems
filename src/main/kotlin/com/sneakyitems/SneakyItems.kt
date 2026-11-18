@@ -11,6 +11,7 @@ import com.sneakyitems.listener.OwnerDefinitionCleanupListener
 import com.sneakyitems.platform.SneakyItemsPlatform
 import com.sneakyitems.service.CarriedItemIndex
 import com.sneakyitems.service.HeldItemIndex
+import com.sneakyitems.service.ItemRulesService
 import com.sneakyitems.service.ItemWatchService
 import com.sneakyitems.service.LegacyItemTagMappings
 import com.sneakyitems.util.items.CharacterExpirationHook
@@ -56,6 +57,9 @@ open class SneakyItems : JavaPlugin() {
     /** `SneakyItemsAPI.whileCarrying` / `whileHolding` subscriptions (SneakyUtils per-player timers). */
     internal val watches = ItemWatchService(this, carried, held) { SneakyUtils.getTriggers() }
 
+    /** `SneakyItemsAPI.itemRules` groups (carry limit, no containers, unique serials, placing...). */
+    internal val rules = ItemRulesService(this) { runCatching { SneakyUtils.getTriggers() }.getOrNull() }
+
     override fun onLoad() {
         instance = this
         SneakyItemsPlatform.init(this)
@@ -97,6 +101,7 @@ open class SneakyItems : JavaPlugin() {
     override fun onDisable() {
         recheck.stop()
         watches.clear()
+        rules.clear()
         held.clear()
         carried.clear()
         MagicItemBehaviorKeys.setNamespaceListener(null)
@@ -135,6 +140,7 @@ open class SneakyItems : JavaPlugin() {
         pm.registerEvents(clicks, this)
         pm.registerEvents(CarriedItemListener(carried), this)
         pm.registerEvents(watches, this)
+        pm.registerEvents(rules, this)
         MagicItemBehaviorKeys.setNamespaceListener {
             carried.onNamespaceChanged()
             held.onNamespaceChanged()

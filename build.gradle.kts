@@ -34,7 +34,7 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     // Internal Team-Sneakymouse / Lords of Minecraft artifacts:
-    maven("https://maven.sneakyrp.com/releases")
+    maven("https://maven.sneakyrp.com/sneakymouse")
     if (cmiJarPresent) {
         flatDir { dirs(magicSpellsCmiLibs.absolutePath) }
     }
@@ -43,7 +43,7 @@ repositories {
 val paperApi = "26.2.build.+"
 val mockBukkitVersion = "4.117.0"
 /** Pinned SneakyUtils for compileOnly / tests; runServer stages it via paper-plugin.yml matching. */
-val sneakyUtilsVersion = "2026.11.16-c8f173b2863e"
+val sneakyUtilsVersion = "2026.11.18-e359806ed982"
 val sneakyCharacterManagerVersion = "2026.11.07-1c03aa4ed314"
 val sneakyVaultsVersion = "2026.10.31-d034ef49f06b"
 val magicSpellsCmiLibs = rootDir.resolve("../MagicSpells-Workspace/MagicSpells/core/libs").normalize()
@@ -343,7 +343,7 @@ publishing {
     repositories {
         maven {
             name = "sneakyrp"
-            url = uri("https://maven.sneakyrp.com/releases")
+            url = uri("https://maven.sneakyrp.com/sneakymouse")
             credentials(PasswordCredentials::class)
             authentication {
                 create<org.gradle.authentication.http.BasicAuthentication>("basic")

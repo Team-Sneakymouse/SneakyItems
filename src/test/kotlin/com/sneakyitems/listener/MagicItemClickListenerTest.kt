@@ -331,6 +331,59 @@ class MagicItemClickListenerTest {
         assertEquals(2, swings.size)
     }
 
+    // --- scheduling only when something can fire ---
+
+    private fun pendingTasks() = server.scheduler.pendingTasks.size
+
+    @Test
+    fun `swings schedule nothing without swing listeners or cast-on-animate`() {
+        MagicItemSwingEvent.getHandlerList().unregister(plugin)
+        player.inventory.setItemInMainHand(magic("sword"))
+        val before = pendingTasks()
+        swing()
+        assertEquals(before, pendingTasks())
+        server.scheduler.performTicks(1)
+        assertTrue(fired.isEmpty())
+    }
+
+    @Test
+    fun `swings and air left clicks with an empty or non-magic main hand schedule nothing`() {
+        val before = pendingTasks()
+        swing()
+        interact(Action.LEFT_CLICK_AIR)
+        player.inventory.setItemInMainHand(ItemStack(Material.STICK))
+        swing()
+        interact(Action.LEFT_CLICK_AIR)
+        assertEquals(before, pendingTasks())
+
+        player.inventory.setItemInMainHand(magic("wand"))
+        swing()
+        interact(Action.LEFT_CLICK_AIR)
+        assertEquals(before + 2, pendingTasks())
+    }
+
+    @Test
+    fun `cast-on-animate still fires swing clicks without swing listeners`() {
+        MagicItemSwingEvent.getHandlerList().unregister(plugin)
+        listener.castOnAnimate = true
+        player.inventory.setItemInMainHand(magic("wand"))
+        swing()
+        server.scheduler.performTicks(1)
+        assertEquals(Trigger.ARM_SWING, fired.single().trigger)
+        assertTrue(swings.isEmpty())
+    }
+
+    @Test
+    fun `the delayed task reads the main hand again`() {
+        player.inventory.setItemInMainHand(magic("wand"))
+        swing()
+        interact(Action.LEFT_CLICK_AIR)
+        player.inventory.setItemInMainHand(magic("staff"))
+        server.scheduler.performTicks(1)
+        assertEquals("staff", swings.single().itemKey)
+        assertEquals("staff", fired.single().itemKey)
+    }
+
     @Test
     fun `cast-on-animate is read from config on reload`() {
         plugin.config.set("click-events.cast-on-animate", true)

@@ -172,18 +172,22 @@ open class ItemRecheckService(
 
     companion object {
         /**
-         * Item entities and item displays always; other living entities (players have their own queue) only while
-         * they wear or hold something, so empty-handed mobs never enter the queue.
+         * Item entities and item displays always; other living entities only while they wear or hold something, so
+         * empty-handed mobs never enter the queue. Real players have their own queue; player-type NPCs (Citizens
+         * marks them with `NPC` metadata) are not online players, so they go through this one.
          */
         private fun holdsItems(entity: Entity): Boolean = when (entity) {
             is Item, is ItemDisplay -> true
-            is Player -> false
+            is Player if !entity.hasMetadata(NPC_METADATA) -> false
             is LivingEntity -> {
                 val equipment = entity.equipment
                 equipment != null && EQUIPMENT_SLOTS.any { !equipment.getItem(it).type.isAir }
             }
             else -> false
         }
+
+        /** Metadata key Citizens sets on its NPC entities. */
+        private const val NPC_METADATA = "NPC"
 
         /** Hands and armor, which every living entity has. Body/saddle slots (horse armor, saddles) are not checked. */
         private val EQUIPMENT_SLOTS = listOf(

@@ -38,7 +38,7 @@ The permission is `sneakyitems.command.reload` (default: operators).
 ### Item re-checks
 
 SneakyItems re-checks loaded item entities, item displays, the hand and armor slots of other living entities
-(mobs, armor stands) and online players itself. Owner plugins don't
+(mobs, armor stands, player-type Citizens NPCs) and online players itself. Owner plugins don't
 need to trigger it. The work goes through one queue, drained a few entries per tick (`item-recheck` in
 `config.yml`, default 10 entities and 1 player per tick):
 

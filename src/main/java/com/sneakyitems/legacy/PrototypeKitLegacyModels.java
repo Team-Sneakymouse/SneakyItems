@@ -21,18 +21,19 @@ import java.util.logging.Logger;
 /**
  * TEMPORARY (added 2026-11-20, remove after about 2026-12-20).
  *
- * <p>SneakyPrototypeKit items ignore {@code ITEM_MODEL} and {@code CUSTOM_MODEL_DATA}, so the normal updater
- * never touches their look. Copies made before the integer custom model data was retired still carry the old
- * integer, which the pack no longer resolves. This swaps that integer for the {@code item_model} it used to
- * show, using the old pack's table bundled at {@value #RESOURCE}.
+ * <p>Items players created with SneakyPrototypeKit ({@code item-prototypekit-created-*}; not the kit or test kit)
+ * ignore {@code ITEM_MODEL} and {@code CUSTOM_MODEL_DATA}, so the normal updater never touches their look. Copies
+ * made before the integer custom model data was retired still carry the old integer, which the pack no longer
+ * resolves. This swaps that integer for the {@code item_model} it used to show, using the old pack's table
+ * bundled at {@value #RESOURCE}. Only the model changes: the rest of the stack is kept as it is.
  *
  * <p>To remove: delete this class, {@code src/main/resources/legacy/prototypekit-item-models.csv},
  * {@code PrototypeKitLegacyModelsTest}, and the one call in {@code MagicItemUpdater}.
  */
 public final class PrototypeKitLegacyModels {
 
-    /** Covers {@code item-prototypekit}, {@code item-prototypekit-test} and {@code item-prototypekit-created-*}. */
-    private static final String NAME_PREFIX = "item-prototypekit";
+    /** Player-created prototype items only (SneakyPrototypeKit {@code PrototypeMagicItems.CREATED_PREFIX}). */
+    private static final String NAME_PREFIX = "item-prototypekit-created-";
     private static final String RESOURCE = "/legacy/prototypekit-item-models.csv";
 
     private record Route(int maxExclusive, NamespacedKey model) {}
@@ -42,8 +43,8 @@ public final class PrototypeKitLegacyModels {
     private PrototypeKitLegacyModels() {}
 
     /**
-     * Returns a copy of {@code stack} with its legacy integer custom model data replaced by the matching
-     * item model, or {@code stack} itself when it is not a prototype-kit item, already has an item model,
+     * Returns a copy of {@code stack} with only its legacy integer custom model data replaced by the matching
+     * item model, or {@code stack} itself when it is not a player-created prototype item, already has an item model,
      * has no plain integer custom model data, or the integer had no model in the old pack.
      */
     public static ItemStack migrate(ItemStack stack, String magicItemName) {

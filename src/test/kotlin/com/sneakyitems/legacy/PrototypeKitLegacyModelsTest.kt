@@ -39,7 +39,29 @@ class PrototypeKitLegacyModelsTest {
         assertNull(PrototypeKitLegacyModels.lookup(Material.DIRT, 1))
     }
 
-    @Test fun `prototype-kit item swaps integer for item model`() {
+    @Test fun `only the model changes on a created item`() {
+        val name = "item-prototypekit-created-amethyst_cluster"
+        val extra = NamespacedKey("sneakyprototypekit", "left_click_ability")
+        val stack = legacy(Material.AMETHYST_CLUSTER, 2f, name).apply {
+            amount = 7
+            editMeta {
+                it.displayName(net.kyori.adventure.text.Component.text("Player Rock"))
+                it.lore(listOf(net.kyori.adventure.text.Component.text("made by someone")))
+                it.persistentDataContainer.set(extra, PersistentDataType.STRING, "fireball")
+                it.setMaxStackSize(16)
+            }
+        }
+        val expected = stack.clone().apply {
+            editMeta {
+                it.itemModel = NamespacedKey.fromString("lom:tools/manastone2")
+                it.setCustomModelDataComponent(null)
+            }
+        }
+        val out = PrototypeKitLegacyModels.migrate(stack, name)
+        assertEquals(expected, out)
+    }
+
+    @Test fun `created item swaps integer for item model`() {
         val stack = legacy(Material.AMETHYST_CLUSTER, 2f, "item-prototypekit-created-amethyst_cluster")
         val out = PrototypeKitLegacyModels.migrate(stack, "item-prototypekit-created-amethyst_cluster")
         assertNotSame(stack, out)
@@ -51,6 +73,12 @@ class PrototypeKitLegacyModelsTest {
     @Test fun `other items, unmapped ints and items with a model are left alone`() {
         val other = legacy(Material.AMETHYST_CLUSTER, 2f, "item-something")
         assertSame(other, PrototypeKitLegacyModels.migrate(other, "item-something"))
+
+        // The kit and test kit themselves are not player-created items.
+        for (kit in listOf("item-prototypekit", "item-prototypekit-test")) {
+            val stack = legacy(Material.AMETHYST_CLUSTER, 2f, kit)
+            assertSame(stack, PrototypeKitLegacyModels.migrate(stack, kit))
+        }
 
         val unmapped = legacy(Material.DIRT, 2f, null)
         assertSame(unmapped, PrototypeKitLegacyModels.migrate(unmapped, "item-prototypekit-created-dirt"))

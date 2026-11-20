@@ -14,16 +14,20 @@ import org.bukkit.Bukkit
 import org.bukkit.entity.Entity
 import org.bukkit.entity.Item
 import org.bukkit.entity.ItemDisplay
+import org.bukkit.entity.LivingEntity
+import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.event.world.EntitiesLoadEvent
+import org.bukkit.inventory.EquipmentSlot
 import org.bukkit.inventory.ItemStack
 import org.bukkit.plugin.Plugin
 import org.bukkit.scheduler.BukkitTask
 import java.util.UUID
 
 /**
- * Owns every bulk item re-check: loaded item entities, item displays and online players.
+ * Owns every bulk item re-check: loaded item entities, item displays, equipment worn or held by other living
+ * entities (mobs, armor stands) and online players.
  *
  * Work is queued and drained a few entries per tick. Nothing drains while definitions are still
  * changing ([DefinitionChangeTracker.pending]). Scheduled tasks only start once the server ticks,
@@ -71,17 +75,17 @@ open class ItemRecheckService(
     }
 
     fun queueEntity(entity: Entity, filter: RecheckFilter) {
-        if (entity is Item || entity is ItemDisplay) entities.add(entity.uniqueId, filter)
+        if (holdsItems(entity)) entities.add(entity.uniqueId, filter)
     }
 
-    /** Queues every loaded item entity and item display, and every online player. */
+    /** Queues every loaded item entity, item display and equipped living entity, and every online player. */
     @JvmOverloads
     fun queueAllLoaded(filter: RecheckFilter, includeLegacy: Boolean = true) {
         if (!MagicItemUpdater.shouldProcessItems()) return
         if (filter == RecheckFilter.All && includeLegacy) firstDefinitionRecheck = false
         for (world in Bukkit.getWorlds()) {
-            for (entity in world.getEntitiesByClasses(Item::class.java, ItemDisplay::class.java)) {
-                entities.add(entity.uniqueId, filter, includeLegacy)
+            for (entity in world.getEntitiesByClasses(Item::class.java, ItemDisplay::class.java, LivingEntity::class.java)) {
+                if (holdsItems(entity)) entities.add(entity.uniqueId, filter, includeLegacy)
             }
         }
         for (player in Bukkit.getOnlinePlayers()) players.add(player.uniqueId, RecheckFilter.All, includeLegacy)
@@ -133,6 +137,10 @@ open class ItemRecheckService(
     }
 
     private fun recheckEntity(entity: Entity, filter: RecheckFilter, includeLegacy: Boolean) {
+        if (entity is LivingEntity) {
+            recheckEquipment(entity, filter, includeLegacy)
+            return
+        }
         val stack = when (entity) {
             is Item -> entity.itemStack
             is ItemDisplay -> entity.itemStack
@@ -151,7 +159,38 @@ open class ItemRecheckService(
         }
     }
 
+    private fun recheckEquipment(entity: LivingEntity, filter: RecheckFilter, includeLegacy: Boolean) {
+        val equipment = entity.equipment ?: return
+        PerformanceDiagnostics.count("recheck.equipment")
+        for (slot in EQUIPMENT_SLOTS) {
+            val stack = equipment.getItem(slot)
+            if (!shouldCheck(stack, filter)) continue
+            val updated = MagicItemUpdater.processItemStack(stack, null, includeLegacy) ?: continue
+            if (updated !== stack) equipment.setItem(slot, updated)
+        }
+    }
+
     companion object {
+        /**
+         * Item entities and item displays always; other living entities (players have their own queue) only while
+         * they wear or hold something, so empty-handed mobs never enter the queue.
+         */
+        private fun holdsItems(entity: Entity): Boolean = when (entity) {
+            is Item, is ItemDisplay -> true
+            is Player -> false
+            is LivingEntity -> {
+                val equipment = entity.equipment
+                equipment != null && EQUIPMENT_SLOTS.any { !equipment.getItem(it).type.isAir }
+            }
+            else -> false
+        }
+
+        /** Hands and armor, which every living entity has. Body/saddle slots (horse armor, saddles) are not checked. */
+        private val EQUIPMENT_SLOTS = listOf(
+            EquipmentSlot.HAND, EquipmentSlot.OFF_HAND,
+            EquipmentSlot.HEAD, EquipmentSlot.CHEST, EquipmentSlot.LEGS, EquipmentSlot.FEET,
+        )
+
         /**
          * A stack tagged with a registered name is only checked when that name changed. Untagged stacks
          * and unknown tags may be legacy items, so they are checked whenever legacy mappings exist.

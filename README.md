@@ -37,11 +37,13 @@ The permission is `sneakyitems.command.reload` (default: operators).
 
 ### Item re-checks
 
-SneakyItems re-checks loaded item entities, item displays and online players itself. Owner plugins don't
+SneakyItems re-checks loaded item entities, item displays, the hand and armor slots of other living entities
+(mobs, armor stands) and online players itself. Owner plugins don't
 need to trigger it. The work goes through one queue, drained a few entries per tick (`item-recheck` in
 `config.yml`, default 10 entities and 1 player per tick):
 
-- **Entities load** (`EntitiesLoadEvent`): their item entities and item displays are queued.
+- **Entities load** (`EntitiesLoadEvent`): their item entities, item displays and living entities that wear or
+  hold something are queued.
 - **Definitions change** (any register/clear, for example `/ms reload`): once no change has arrived for
   `definition-settle-ticks`, the definition versions are compared with the previous settle. Only stacks
   tagged with a changed name are rebuilt. The first full startup re-check includes legacy matching;

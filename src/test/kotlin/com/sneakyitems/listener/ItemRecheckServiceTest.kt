@@ -16,6 +16,8 @@ import org.bukkit.inventory.meta.BlockStateMeta
 import net.kyori.adventure.text.Component
 import org.bukkit.Location
 import org.bukkit.Material
+import org.bukkit.entity.ArmorStand
+import org.bukkit.entity.Zombie
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
@@ -255,5 +257,28 @@ class ItemRecheckServiceTest {
         assertFalse(ItemRecheckService.shouldCheck(tagged("recheck-known"), filter))
         assertTrue(ItemRecheckService.shouldCheck(tagged("recheck-known"), RecheckFilter.Names(setOf("recheck-known"))))
         assertTrue(ItemRecheckService.shouldCheck(tagged("recheck-known"), RecheckFilter.All))
+    }
+
+    @Test
+    fun `definition changes update equipment worn or held by mobs and armor stands`() {
+        val world = server.addSimpleWorld("recheck-equipment")
+        val at = Location(world, 0.0, 64.0, 0.0)
+        SneakyItemsAPI.registerFromStack(plugin, "magicspells", "recheck-equip", template("Old"))
+        server.scheduler.performTicks(MagicItemRegistry.changes.settleTicks + 2L)
+        val stand = world.spawn(at, ArmorStand::class.java)
+        stand.equipment.setHelmet(SneakyItemsAPI.getItemStack("recheck-equip"))
+        val zombie = world.spawn(at, Zombie::class.java)
+        zombie.equipment.setItemInMainHand(SneakyItemsAPI.getItemStack("recheck-equip"))
+        world.spawn(at, Zombie::class.java) // empty-handed: never queued
+        enableUpdates()
+
+        SneakyItemsAPI.registerFromStack(plugin, "magicspells", "recheck-equip", template("New"))
+        server.scheduler.performTicks(MagicItemRegistry.changes.settleTicks + 2L)
+        server.scheduler.performTicks(5)
+
+        assertEquals(Component.text("New"), stand.equipment.helmet.itemMeta.itemName())
+        assertEquals(Component.text("New"), zombie.equipment.itemInMainHand.itemMeta.itemName())
+        plugin.recheck.queueAllLoaded(RecheckFilter.All)
+        assertEquals(2, plugin.recheck.queuedEntities)
     }
 }

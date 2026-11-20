@@ -339,6 +339,9 @@ public class MagicItemUpdater {
         if (magicItem == null)
             return itemStack;
 
+        // TEMPORARY (remove after ~2026-12-20 together with PrototypeKitLegacyModels).
+        itemStack = com.sneakyitems.legacy.PrototypeKitLegacyModels.migrate(itemStack, magicitemName);
+
         PerformanceDiagnostics.count("items.magic");
         long definitionVersion = magicItem.getDefinitionVersion();
         Long stampedVersion = container.get(VERSION_KEY, PersistentDataType.LONG);

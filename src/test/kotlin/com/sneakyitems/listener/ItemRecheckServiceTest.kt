@@ -21,6 +21,7 @@ import org.bukkit.entity.Zombie
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
 import org.bukkit.inventory.ItemStack
+import org.bukkit.metadata.FixedMetadataValue
 import org.bukkit.persistence.PersistentDataType
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -280,5 +281,18 @@ class ItemRecheckServiceTest {
         assertEquals(Component.text("New"), zombie.equipment.itemInMainHand.itemMeta.itemName())
         plugin.recheck.queueAllLoaded(RecheckFilter.All)
         assertEquals(2, plugin.recheck.queuedEntities)
+    }
+
+    @Test
+    fun `player-type NPCs with equipment are queued, real players are not`() {
+        val player = server.addPlayer()
+        player.inventory.setHelmet(ItemStack(Material.STONE))
+        enableUpdates()
+        plugin.recheck.queueEntity(player, RecheckFilter.All)
+        assertEquals(0, plugin.recheck.queuedEntities)
+
+        player.setMetadata("NPC", FixedMetadataValue(plugin, true))
+        plugin.recheck.queueEntity(player, RecheckFilter.All)
+        assertEquals(1, plugin.recheck.queuedEntities)
     }
 }
